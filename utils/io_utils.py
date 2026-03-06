@@ -2,26 +2,25 @@
 
 import os
 import sys
+import logging
 
-sys.path.append("..")
 import csv
 import glob
 import shutil
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any, Dict, Optional, Tuple #List,
+from pathlib import Path
 import ismrmrd
 import mapvbvd
 import nibabel as nib
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import pydicom
 import scipy.io as sio
-import logging
-import ml_collections
 from ml_collections import config_dict
 
 from utils import constants, img_utils, mrd_utils, twix_utils
 
+sys.path.append("..")
 
 def import_np(path: str) -> np.ndarray:
     """Import npy file to np.ndarray.
@@ -45,7 +44,7 @@ def import_nii(path: str) -> np.ndarray:
     return nib.load(path).get_fdata()
 
 
-def import_mat(path: str) -> Dict[str, Any]:
+def import_mat(path: str) -> dict[str, Any]:
     """Import  matlab file as dictionary.
 
     Args:
@@ -56,11 +55,11 @@ def import_mat(path: str) -> Dict[str, Any]:
     return sio.loadmat(path)
 
 
-def import_matstruct_to_dict(struct: np.ndarray) -> Dict[str, Any]:
-    """Import matlab  as dictionary.
+def import_matstruct_to_dict(struct: np.ndarray) -> dict[str, Any]:
+    """Import matlab struct as dictionary.
 
     Args:
-        path: str file path of matlab file
+        struct: np.ndarray matlab struct
     Returns:
         dictionary loaded from matlab file
     """
@@ -95,8 +94,8 @@ def get_dyn_twix_files(path: str) -> str:
             + glob.glob(os.path.join(path, "**Dynamic**.dat"))
             + glob.glob(os.path.join(path, "**dyn**.dat"))
         )[0]
-    except:
-        raise ValueError("Can't find twix file in path.")
+    except Exception as excep:
+        raise ValueError("Can't find twix file in path.") from excep
 
 
 def get_dis_twix_files(path: str) -> str:
@@ -112,8 +111,8 @@ def get_dis_twix_files(path: str) -> str:
             glob.glob(os.path.join(path, "**dixon***.dat"))
             + glob.glob(os.path.join(path, "**Dixon***.dat"))
         )[0]
-    except:
-        raise ValueError("Can't find twix file in path.")
+    except Exception as excep:
+        raise ValueError("Can't find twix file in path.") from excep
 
 
 def get_ute_twix_files(path: str) -> str:
@@ -129,46 +128,51 @@ def get_ute_twix_files(path: str) -> str:
             glob.glob(os.path.join(path, "**1H***.dat"))
             + glob.glob(os.path.join(path, "**BHUTE***.dat"))
             + glob.glob(os.path.join(path, "**ute***.dat"))
-            + glob.glob(os.path.join(path, "**h_radial***.dat"))
         )[0]
-    except:
-        raise ValueError("Can't find twix file in path.")
+    except Exception as excep:
+        raise ValueError("Can't find twix file in path.") from excep
 
 
 def get_dyn_mrd_files(path: str) -> str:
     """Get list of dynamic spectroscopy MRD files.
 
-    Args:
-        path: str directory path of MRD files
-    Returns:
-        str file path of MRD file
+    Args: path: str directory path of MRD files
+    Returns: str file path of MRD file
     """
     try:
         return (
             glob.glob(os.path.join(path, "**Calibration***.h5"))
-            + glob.glob(os.path.join(path, "**calibration***.h5")) 
-            + glob.glob(os.path.join(path, "**Calibration***.mrd"))
-            + glob.glob(os.path.join(path, "**calibration***.mrd"))
+            + glob.glob(os.path.join(path, "**calibration***.h5"))
         )[0]
-    except:
-        raise ValueError("Can't find MRD file in path.")
+    except Exception as excep:
+        raise ValueError("Can't find MRD file in path.") from excep
 
 
-def get_dis_mrd_files(path: str) -> str:
-    """Get list of gas exchange MRD files.
+def get_dis_mrd_files(path: str) -> Optional[str]:
+    """Get the gas-exchange MRD (.h5) file.
+    Also ensures that the file name does NOT contain 'mask'.
 
     Args:
-        path: str directory path of MRD files
+        path: Directory path to search (recursively).
+
     Returns:
-        str file path of MRD file
+        The file path of the selected MRD .h5 file, or None if no match is found.
     """
+    def _no_mask(files):
+        # Exclude filenames containing 'mask' (case-insensitive)
+        return (f for f in files if 'mask' not in os.path.basename(f).lower())
     try:
-        return (
-            glob.glob(os.path.join(path, "**dixon***.h5"))
-            + glob.glob(os.path.join(path, "**dixon***.mrd"))
-        )[0]
-    except:
-        raise ValueError("Can't find MRD file in path.")
+        file_option1 = _no_mask(glob.glob(os.path.join(path,"**", "*[Gg]as*.h5"), recursive=True))
+        file_option2 = _no_mask(glob.glob(os.path.join(path,"**", "*[Dd]ixon*.h5"), recursive=True))
+        select_file =  (next(iter(file_option1), None) or
+                        next(iter(file_option2), None))
+        if select_file is None:
+            logging.info("No matching file found in %s", path)
+        return select_file
+
+    except IndexError as err:
+        logging.error("Error searching files in %s: %s", path, err)
+        return None
 
 
 def get_ute_mrd_files(path: str) -> str:
@@ -180,12 +184,17 @@ def get_ute_mrd_files(path: str) -> str:
         str file path of MRD file
     """
     try:
-        return (
-            glob.glob(os.path.join(path, "**proton***.h5"))
-            + glob.glob(os.path.join(path, "**proton***.mrd"))
-        )[0]
-    except:
-        raise ValueError("Can't find MRD file in path.")
+        files = glob.glob(os.path.join(path, "**/*ute*.h5"), recursive=True)
+        if files:
+            return files[0]
+        files = glob.glob(os.path.join(path, "**/*Mask*.h5"), recursive=True)
+        if files:
+            return files[0]
+        files = glob.glob(os.path.join(path, "**/*mask*.h5"), recursive=True)
+        if files:
+            return files[0]
+    except IndexError as errr:
+        logging.error("can't find ute file: %s", errr)
 
 
 def get_mat_file(path: str) -> str:
@@ -198,11 +207,11 @@ def get_mat_file(path: str) -> str:
     """
     try:
         return (glob.glob(os.path.join(path, "**.mat")))[0]
-    except:
-        raise ValueError("Can't find mat file in path.")
+    except Exception as exc:
+        raise ValueError(f"Can't find mat file in path: {path}") from exc
 
 
-def read_dyn_twix(path: str) -> Dict[str, Any]:
+def read_dyn_twix(path: str) -> dict[str, Any]:
     """Read dynamic spectroscopy twix file.
 
     Args:
@@ -218,40 +227,37 @@ def read_dyn_twix(path: str) -> Dict[str, Any]:
     """
     try:
         twix_obj = mapvbvd.mapVBVD(path)
-    except:
-        raise ValueError("Invalid twix file.")
+    except Exception as exc:
+        raise ValueError("Invalid twix file.") from exc
     twix_obj.image.squeeze = True
     twix_obj.image.flagIgnoreSeg = True
     twix_obj.image.flagRemoveOS = False
 
     # Get scan information
-    sample_time = twix_utils.get_sample_time(twix_obj=twix_obj)
+    sample_time = twix_utils.get_dwell_time(twix_obj=twix_obj)
     fids_dis = twix_utils.get_dyn_fids(twix_obj)
-    xe_center_frequency = twix_utils.get_center_freq(twix_obj=twix_obj)
-    xe_dissolved_offset_frequency = twix_utils.get_excitation_freq(twix_obj=twix_obj)
+    freq_center = twix_utils.get_center_freq(twix_obj=twix_obj)
+    freq_excitation = twix_utils.get_excitation_freq(twix_obj=twix_obj)
     scan_date = twix_utils.get_scan_date(twix_obj=twix_obj)
     tr = twix_utils.get_TR(twix_obj=twix_obj)
 
     return {
         constants.IOFields.SAMPLE_TIME: sample_time,
         constants.IOFields.FIDS_DIS: fids_dis,
-        constants.IOFields.XE_CENTER_FREQUENCY: xe_center_frequency,
-        constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY: xe_dissolved_offset_frequency,
+        constants.IOFields.FREQ_CENTER: freq_center,
+        constants.IOFields.FREQ_EXCITATION: freq_excitation,
         constants.IOFields.SCAN_DATE: scan_date,
         constants.IOFields.TR: tr,
     }
 
 
-def read_dis_twix(path: str, config: Optional[ml_collections.ConfigDict] = None) -> Dict[str, Any]:
+def read_dis_twix(path: str) -> dict[str, Any]:
     """Read 1-point dixon disssolved phase imaging twix file.
 
     Args:
         path: str file path of twix file
     Returns: dictionary containing data and metadata extracted from the twix file.
     This includes:
-        - Age: Patient age as a float.
-        - Sex: Patient sex as a string ("M" or "F").
-        - Height: Patient height in centimeters as a float.
         - dwell time in seconds.
         - flip angle applied to dissolved phase in degrees.
         - flip angle applied to gas phase in degrees.
@@ -274,8 +280,8 @@ def read_dis_twix(path: str, config: Optional[ml_collections.ConfigDict] = None)
     """
     try:
         twix_obj = mapvbvd.mapVBVD(path)
-    except:
-        raise ValueError("Invalid twix file.")
+    except Exception as excep:
+        raise ValueError("Invalid twix file.") from excep
     twix_obj.image.squeeze = True
     twix_obj.image.flagIgnoreSeg = True
     twix_obj.image.flagRemoveOS = False
@@ -283,30 +289,20 @@ def read_dis_twix(path: str, config: Optional[ml_collections.ConfigDict] = None)
     data_dict = twix_utils.get_gx_data(twix_obj=twix_obj)
     filename = os.path.basename(path)
 
-    if config or config.recon.del_x is constants.NONE:  # type: ignore
-        logging.error("Gradient delay is not properly set in the config file")
-
     return {
-        constants.IOFields.AGE: twix_utils.get_patient_age(twix_obj),
-        constants.IOFields.SEX: twix_utils.get_patient_sex(twix_obj),
-        constants.IOFields.HEIGHT: twix_utils.get_patient_height(twix_obj),
-        constants.IOFields.SAMPLE_TIME: twix_utils.get_sample_time(twix_obj),
+        constants.IOFields.SAMPLE_TIME: twix_utils.get_dwell_time(twix_obj),
         constants.IOFields.FA_DIS: twix_utils.get_flipangle_dissolved(twix_obj),
         constants.IOFields.FA_GAS: twix_utils.get_flipangle_gas(twix_obj),
-        constants.IOFields.FIELD_STRENGTH: twix_utils.get_field_strength(twix_obj),
         constants.IOFields.FIDS: data_dict[constants.IOFields.FIDS],
         constants.IOFields.FIDS_DIS: data_dict[constants.IOFields.FIDS_DIS],
         constants.IOFields.FIDS_GAS: data_dict[constants.IOFields.FIDS_GAS],
+        constants.IOFields.FIELD_STRENGTH: twix_utils.get_field_strength(twix_obj),
         constants.IOFields.FOV: twix_utils.get_FOV(twix_obj),
-        constants.IOFields.XE_CENTER_FREQUENCY: twix_utils.get_center_freq(twix_obj),
-        constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY: twix_utils.get_excitation_freq(
-            twix_obj
-        ),
-        constants.IOFields.GRAD_DELAY_X: config.recon.del_x,
-        constants.IOFields.GRAD_DELAY_Y: config.recon.del_y,
-        constants.IOFields.GRAD_DELAY_Z: config.recon.del_z,
-        constants.IOFields.INSTITUTION: twix_utils.get_institution_name(twix_obj),
-        constants.IOFields.SYSTEM_VENDOR: twix_utils.get_system_vendor(twix_obj),
+        constants.IOFields.FREQ_CENTER: twix_utils.get_center_freq(twix_obj),
+        constants.IOFields.FREQ_EXCITATION: twix_utils.get_excitation_freq(twix_obj),
+        constants.IOFields.GRAD_DELAY_X: data_dict[constants.IOFields.GRAD_DELAY_X],
+        constants.IOFields.GRAD_DELAY_Y: data_dict[constants.IOFields.GRAD_DELAY_Y],
+        constants.IOFields.GRAD_DELAY_Z: data_dict[constants.IOFields.GRAD_DELAY_Z],
         constants.IOFields.N_FRAMES: data_dict[constants.IOFields.N_FRAMES],
         constants.IOFields.N_SKIP_END: data_dict[constants.IOFields.N_SKIP_END],
         constants.IOFields.N_SKIP_START: data_dict[constants.IOFields.N_SKIP_START],
@@ -321,11 +317,29 @@ def read_dis_twix(path: str, config: Optional[ml_collections.ConfigDict] = None)
         constants.IOFields.BANDWIDTH: twix_utils.get_bandwidth(
             twix_obj, data_dict, filename
         ),
-        constants.IOFields.PREP_PULSES: "false",
     }
 
 
-def read_ute_twix(path: str) -> Dict[str, Any]:
+def read_bonus_twix(path: str) -> dict[str, Any]:
+    """Read the bonus spectrum at the end of the dissolved scan.
+
+    Args:
+        path: str file path of twix file
+    Returns:
+        dictionary containing data and metadata extracted from the twix file.
+    """
+    try:
+        twix_obj = mapvbvd.mapVBVD(path)
+    except Exception as exc:
+        raise ValueError("Invalid twix file.") from exc
+    twix_obj.image.squeeze = True
+    twix_obj.image.flagIgnoreSeg = True
+    twix_obj.image.flagRemoveOS = False
+    data_dict = twix_utils.get_bonus_data(twix_obj)
+    return data_dict
+
+
+def read_ute_twix(path: str) -> dict[str, Any]:
     """Read proton ute imaging twix file.
 
     Args:
@@ -336,8 +350,8 @@ def read_ute_twix(path: str) -> Dict[str, Any]:
     """
     try:
         twix_obj = mapvbvd.mapVBVD(path)
-    except:
-        raise ValueError("Invalid twix file.")
+    except Exception as excep:
+        raise ValueError("Invalid twix file.") from excep
     try:
         twix_obj.image.squeeze = True
     except:
@@ -347,27 +361,23 @@ def read_ute_twix(path: str) -> Dict[str, Any]:
         twix_obj.image.squeeze = True
         twix_obj.image.flagIgnoreSeg = True
         twix_obj.image.flagRemoveOS = False
-    except:
-        raise ValueError("Cannot get data from twix object.")
+    except Exception as excep:
+        raise ValueError("Cannot get data from twix object.") from excep
     data_dict = twix_utils.get_ute_data(twix_obj=twix_obj)
 
     return {
-        constants.IOFields.SAMPLE_TIME: twix_utils.get_sample_time(twix_obj),
+        constants.IOFields.SAMPLE_TIME: twix_utils.get_dwell_time(twix_obj),
         constants.IOFields.FIDS: data_dict[constants.IOFields.FIDS],
-        constants.IOFields.INSTITUTION: twix_utils.get_institution_name(twix_obj),
-        constants.IOFields.SYSTEM_VENDOR: twix_utils.get_system_vendor(twix_obj),
         constants.IOFields.RAMP_TIME: twix_utils.get_ramp_time(twix_obj),
         constants.IOFields.GRAD_DELAY_X: data_dict[constants.IOFields.GRAD_DELAY_X],
         constants.IOFields.GRAD_DELAY_Y: data_dict[constants.IOFields.GRAD_DELAY_Y],
         constants.IOFields.GRAD_DELAY_Z: data_dict[constants.IOFields.GRAD_DELAY_Z],
-        constants.IOFields.N_SKIP_END: data_dict[constants.IOFields.N_SKIP_END],
-        constants.IOFields.N_SKIP_START: data_dict[constants.IOFields.N_SKIP_START],
         constants.IOFields.N_FRAMES: data_dict[constants.IOFields.N_FRAMES],
         constants.IOFields.ORIENTATION: twix_utils.get_orientation(twix_obj),
     }
 
 
-def read_dyn_mrd(path: str) -> Dict[str, Any]:
+def read_dyn_mrd(path: str) -> dict[str, Any]:
     """Read dynamic spectroscopy MRD file.
 
     Args:
@@ -384,8 +394,8 @@ def read_dyn_mrd(path: str) -> Dict[str, Any]:
     try:
         dataset = ismrmrd.Dataset(path, "dataset", create_if_needed=False)
         header = ismrmrd.xsd.CreateFromDocument(dataset.read_xml_header())
-    except:
-        raise ValueError("Invalid mrd file.")
+    except Exception as excep:
+        raise ValueError("Invalid mrd file.") from excep
     # Get scan information
     sample_time = mrd_utils.get_sample_time(dataset=dataset)
     fids_dis = mrd_utils.get_dyn_fids(dataset=dataset)
@@ -404,17 +414,14 @@ def read_dyn_mrd(path: str) -> Dict[str, Any]:
     }
 
 
-def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
+def read_dis_mrd(path: str) -> dict[str, Any]: #, multi_echo: bool
     """Read 1-point dixon disssolved phase imaging mrd file.
 
     Args:
         path: str file path of mrd file
-        multi_echo: option to perform multi echo
+        multi_echo: option to perform multi echo ##TODO add this functionality
     Returns: dictionary containing data and metadata extracted from the mrd file.
     This includes:
-        - Age: Patient age as a float.
-        - Sex: Patient sex as a string ("M" or "F").
-        - Height: Patient height in centimeters as a float.
         - dwell time in seconds.
         - flip angle applied to dissolved phase in degrees.
         - flip angle applied to gas phase in degrees.
@@ -438,16 +445,17 @@ def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
     try:
         dataset = ismrmrd.Dataset(path, "dataset", create_if_needed=False)
         header = ismrmrd.xsd.CreateFromDocument(dataset.read_xml_header())
-    except:
-        raise ValueError("Invalid mrd file.")
+    except Exception as excep:
+        raise ValueError("Invalid mrd file.") from excep
 
-    data_dict = mrd_utils.get_gx_data(dataset, multi_echo)
+    data_dict = mrd_utils.get_gx_data(dataset) #, multi_echo
+
     return {
-        constants.IOFields.AGE: np.nan,
-        constants.IOFields.SEX: np.nan,
-        constants.IOFields.HEIGHT: np.nan,
+        constants.IOFields.SUBJECT_AGE: np.nan,
+        constants.IOFields.SUBJECT_SEX: np.nan,
+        constants.IOFields.SUBJECT_HEIGHT: np.nan,
         constants.IOFields.BANDWIDTH: np.nan,
-        constants.IOFields.SAMPLE_TIME: mrd_utils.get_sample_time_gas_exchange(dataset),
+        constants.IOFields.SAMPLE_TIME: mrd_utils.get_sample_time(dataset),
         constants.IOFields.FA_DIS: mrd_utils.get_flipangle_dissolved(header),
         constants.IOFields.FA_GAS: mrd_utils.get_flipangle_gas(header),
         constants.IOFields.FIDS: data_dict[constants.IOFields.FIDS],
@@ -457,9 +465,11 @@ def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
         constants.IOFields.FOV: mrd_utils.get_FOV(header),
         constants.IOFields.XE_CENTER_FREQUENCY: mrd_utils.get_center_freq(header),
         constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY: mrd_utils.get_excitation_freq(
-            header
-        ),
-        constants.IOFields.GRAD_DELAY_X: np.nan,
+            header),
+        # constants.IOFields.GRAD_DELAY_X: data_dict[constants.IOFields.GRAD_DELAY_X],
+        # constants.IOFields.GRAD_DELAY_Y: data_dict[constants.IOFields.GRAD_DELAY_Y],
+        # constants.IOFields.GRAD_DELAY_Z: data_dict[constants.IOFields.GRAD_DELAY_Z],
+        constants.IOFields.GRAD_DELAY_X: np.nan, #RH: updated from new code
         constants.IOFields.GRAD_DELAY_Y: np.nan,
         constants.IOFields.GRAD_DELAY_Z: np.nan,
         constants.IOFields.INSTITUTION: mrd_utils.get_institution_name(header),
@@ -467,16 +477,20 @@ def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
         constants.IOFields.ORIENTATION: mrd_utils.get_orientation(header),
         constants.IOFields.PROTOCOL_NAME: mrd_utils.get_protocol_name(header),
         constants.IOFields.RAMP_TIME: mrd_utils.get_ramp_time(header),
+        # constants.IOFields.RAMP_TIME: 0, #RH: updated from new code
+        # constants.IOFields.N_FRAMES: data_dict[constants.IOFields.N_FRAMES],
+        # constants.IOFields.N_SKIP_END: data_dict[constants.IOFields.N_SKIP_END],
+        # constants.IOFields.N_SKIP_START: data_dict[constants.IOFields.N_SKIP_START],
         constants.IOFields.REMOVEOS: False,
         constants.IOFields.SCAN_DATE: mrd_utils.get_scan_date(header),
-        constants.IOFields.SYSTEM_VENDOR: mrd_utils.get_system_vendor(header),
         constants.IOFields.SOFTWARE_VERSION: "NA",
-        constants.IOFields.TE90: mrd_utils.get_TE90(header),
-        constants.IOFields.TR: mrd_utils.get_TR_dissolved(header),
+        constants.IOFields.TE90: mrd_utils.get_TE90(header)/1000.0,
+        constants.IOFields.TR: mrd_utils.get_TR(header=header),
+        constants.IOFields.TR_DIS: mrd_utils.get_TR_dissolved(header),
         constants.IOFields.TRAJ: data_dict[constants.IOFields.TRAJ],
         constants.IOFields.PREP_PULSES: mrd_utils.get_prep_pulses(header),
+        "matrix_size": data_dict["matrix_size"]
     }
-
 
 def read_ute_mrd(path: str) -> Dict[str, Any]:
     """Read proton MRD file.
@@ -490,15 +504,14 @@ def read_ute_mrd(path: str) -> Dict[str, Any]:
     try:
         dataset = ismrmrd.Dataset(path, "dataset", create_if_needed=False)
         header = ismrmrd.xsd.CreateFromDocument(dataset.read_xml_header())
-    except:
-        raise ValueError("Invalid mrd file.")
+    except Exception as excep:
+        raise ValueError("Invalid mrd file.") from excep
 
     data_dict = mrd_utils.get_ute_data(dataset)
     return {
         constants.IOFields.SAMPLE_TIME: mrd_utils.get_sample_time(dataset),
         constants.IOFields.FIDS: data_dict[constants.IOFields.FIDS],
         constants.IOFields.ORIENTATION: mrd_utils.get_orientation(header),
-        constants.IOFields.SYSTEM_VENDOR: mrd_utils.get_system_vendor(header),
         constants.IOFields.RAMP_TIME: mrd_utils.get_ramp_time(header),
         constants.IOFields.GRAD_DELAY_X: np.nan,
         constants.IOFields.GRAD_DELAY_Y: np.nan,
@@ -540,13 +553,67 @@ def read_dicom(path: str, shape_gas: Tuple[int, int, int]) -> np.ndarray:
     return image
 
 
+def load_manual_segmentation(mask_path):
+    """
+    Load a manual segmentation NIfTI file (.nii.gz or .nii).
+    
+    If the given path doesn't exist:
+      - If it ends with .nii.gz -> try the same name with .nii
+      - If it ends with .nii    -> try the same name with .nii.gz
+      - Otherwise               -> try appending .nii.gz then .nii
+
+    Parameters
+    ----------
+    mask_path : str or pathlib.Path
+        Path to the segmentation file (expected .nii.gz or .nii).
+
+    Returns
+    -------
+    np.ndarray (bool)
+        The segmentation as a boolean array, squeezed.
+
+    Raises
+    ------
+    FileNotFoundError
+        If neither the original nor the alternate file exists.
+    """
+    p = Path(mask_path)
+    s = p.as_posix()
+
+    # Build candidate paths to try in order
+    if s.endswith('.nii.gz'):
+        candidates = [p, Path(s[:-3])]  # remove the trailing '.gz' -> .nii
+    elif s.endswith('.nii'):
+        candidates = [p, Path(s + '.gz')]  # -> .nii.gz
+    else:
+        # If no (recognized) suffix given, try both extensions
+        candidates = [p, Path(s + '.nii.gz'), Path(s + '.nii')]
+
+    # Deduplicate while preserving order
+    seen, unique_candidates = set(), []
+    for c_ in candidates:
+        if c_ not in seen:
+            unique_candidates.append(c_)
+            seen.add(c_)
+
+    # Try to load the first existing file
+    for c_ in unique_candidates:
+        if c_.is_file():
+            logging.info("Mask file loading: %s", c_)
+            data_ = nib.load(str(c_)).get_fdata()
+            return np.squeeze(np.asarray(data_)).astype(bool)
+
+    tried = ", ".join(str(c_) for c_ in unique_candidates)
+    raise FileNotFoundError(f"Manual segmentation not found. Tried: {tried}")
+
+
 def export_nii(image: np.ndarray, path: str, fov: Optional[float] = None):
     """Export image as nifti file.
 
     Args:
-        image: np.ndarray 3D image to be exported
+        image: np.ndarray 3D image to be exporetd
         path: str file path of nifti file
-        fov: float field of view in cm
+        fov: float field of view
     """
     nii_imge = nib.Nifti1Image(image, np.eye(4))
     if fov:
@@ -558,18 +625,15 @@ def export_nii(image: np.ndarray, path: str, fov: Optional[float] = None):
     nib.save(nii_imge, path)
 
 
-def export_nii_4d(image, path, fov=None):
+def export_nii_4d(image: np.ndarray, path: str, fov: Optional[float] = None):
     """Export 4d image image as nifti file.
 
     Args:
-        image: np.ndarray 4D image to be exported of shape (x,y,z,3)
-        path: str file path of nifti file
-        fov: float field of view in cm
+        image (np.ndarray): 4D image to be exported of shape (x, y, z, 3)
+        path (str): file path of nifti file
+        fov (Optional[float], optional): field of view. Defaults to None.
     """
-    # Scale values and clip to ensure they stay in the [0, 255] range
-    color = np.copy(image)*255  
-    color = np.clip(color, 0, 255).astype("uint8")
-
+    color = (np.copy(image) * 255).astype("uint8")  # need uint8 to save to RGB
     # some fancy and tricky re-arrange
     color = np.transpose(color, [2, 3, 0, 1])
     cline = np.reshape(color, (1, np.size(color)))
@@ -600,7 +664,7 @@ def export_subject_mat(subject: object, path: str):
         subject: subject instance
         path: str file path of mat file
     """
-    sio.savemat(path, vars(subject), long_field_names=True)
+    sio.savemat(path, vars(subject))
 
 
 def export_np(arr: np.ndarray, path: str):
@@ -627,12 +691,12 @@ def export_subject_csv(dict_stats: Dict[str, Any], path: str, overwrite=False):
     """
     header = dict_stats.keys()
     if overwrite or (not os.path.exists(path)):
-        with open(path, "w", newline="") as csvfile:
+        with open(path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=header)
             writer.writeheader()
             writer.writerow(dict_stats)
     else:
-        with open(path, "a", newline="") as csvfile:
+        with open(path, "a", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=header)
             writer.writerow(dict_stats)
 
@@ -648,7 +712,7 @@ def export_config_to_json(config: config_dict, path: str) -> None:
     Returns:
     - None
     """
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(config.to_json_best_effort(indent=4))
 
 
@@ -668,7 +732,3 @@ def move_files(source_paths: list, destination_path: str) -> None:
         fname = os.path.basename(path)
         if os.path.isfile(path):
             shutil.move(path, os.path.join(destination_path, fname))
-
-def check_real_number(input_data):
-    input_data = np.asarray(input_data).squeeze()    # allow scalar or 1-element array
-    return input_data.shape == () and np.isreal(input_data) and np.isfinite(input_data)

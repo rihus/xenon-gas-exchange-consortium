@@ -7,25 +7,29 @@
       content="Gas exchange Imaging Report with 129Xe MRI-technical report"
     />
     <meta name="author" content="Junlan Lu" />
+    <meta name="edits" content="Riaz Hussain" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap"
+      href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
       rel="stylesheet"
     />
-    <link href="../assets/css/report_reset.css" rel="stylesheet" />
-    <link href="../assets/css/report_clinical.css" rel="stylesheet" />
+    <link href="../../assets/css/report_reset.css" rel="stylesheet" />
+    <link href="../../assets/css/report_clinical.css" rel="stylesheet" />
     <title>Gas exchange Imaging Report</title>
   </head>
   <body>
     <div class="title-container">
-      <h1 id="big-title">Summary of {subject_id}</h1>
-      <h5 id="date-title">scan: {scan_date}; processed: {process_date}</h5>
+      <h1 id="big-title">Gas Exachnage Summary of {subject_id}</h1>
+      <h5 id="date-title">scanned: {scan_date}; processed: {process_date}</h5>
     </div>
     <div class="hist-container">
-      <div class="hist-tile" align="left">
-        <img src="../tmp/hist_vent.png" style="width: 100%" />
-        <div class="hist-label">
-          <p>SNR:{vent_snr}</p>
-          <p>Mean:{vent_mean}&plusmn;{vent_stddev}</p>
+      <div class="hist-tile" align="right">
+        <img src="../../tmp/png/hist_vent.png" style="width: 100%" />
+        <div class="top-right">
+          <h2>Ventilation</h2>
+          <p>SNR: {vent_snr}</p>
+          <p>Mean: {vent_mean}</p>
+          <p>Median: {vent_median}</p>
+          <p>SD: {vent_stddev}</p>
         </div>
       </div>
       </div>
@@ -34,27 +38,25 @@
       <div class="map-tile">
         <img
           style="border: 10px solid black"
-          src="../tmp/montage_vent_qa.png"
+          src="../../tmp/png/montage_vent_qa.png"
           width="680"
           height="170px"
         />
         <img
           style="border: 10px solid black"
-          src="../tmp/montage_dissolved_qa.png"
+          src="../../tmp/png/montage_dissolved_qa.png"
           width="680"
           height="170px"
         />
         <img
           style="border: 10px solid black"
-          src="../tmp/montage_proton_qa.png"
+          src="../../tmp/png/montage_proton_qa.png"
           width="680"
           height="170px"
         />
       </div>
       <div class="predict-values">
-        <p>
-          Estimated KCO:{kco_est} ---- VA:{alveolar_volume} ---- DLCO:{dlco_est} ---- RDP_BA:{rdp_ba}%
-        </p>
+        <p>Estimated KCO:{kco_est} ---- VA:{alveolar_volume} ---- DLCO:{dlco_est}</p>
       </div>
     </div>
     <div class="table-container">
@@ -72,52 +74,52 @@
         <tr class="basic">
           <td>Inflation</td>
           <td>{inflation}L</td>
-          <td>{inflation_display}</td>
+          <td>{inflation_avg}&#177;{inflation_std}</td>
         </tr>
         <tr class="ven">
           <td>Defect</td>
           <td>{vent_defect_pct}%</td>
-          <td>{vent_defect_avg}%</td>
+          <td>{vent_defect_avg}&#177;{vent_defect_std}%</td>
         </tr>
         <tr class="ven">
           <td>Low</td>
           <td>{vent_low_pct}%</td>
-          <td>{vent_low_avg}%</td>
+          <td>{vent_low_avg}&#177;{vent_low_std}%</td>
         </tr>
         <tr class="ven">
           <td>High</td>
           <td>{vent_high_pct}%</td>
-          <td>{vent_high_avg}%</td>
+          <td>{vent_high_avg}&#177;{vent_high_std}%</td>
         </tr>
         <tr class="membrane">
           <td>Defect</td>
           <td>{membrane_defect_pct}%</td>
-          <td>{membrane_defect_avg}%</td>
+          <td>{membrane_defect_avg}&#177;{membrane_defect_std}%</td>
         </tr>
         <tr class="membrane">
           <td>Low</td>
           <td>{membrane_low_pct}%</td>
-          <td>{membrane_low_avg}%</td>
+          <td>{membrane_low_avg}&#177;{membrane_low_std}%</td>
         </tr>
         <tr class="membrane">
           <td>High</td>
           <td>{membrane_high_pct}%</td>
-          <td>{membrane_high_avg}%</td>
+          <td>{membrane_high_avg}&#177;{membrane_high_std}%</td>
         </tr>
         <tr class="rbc">
           <td>Defect</td>
           <td>{rbc_defect_pct}%</td>
-          <td>{rbc_defect_avg}%</td>
+          <td>{rbc_defect_avg}&#177;{rbc_defect_std}%</td>
         </tr>
         <tr class="rbc">
           <td>Low</td>
           <td>{rbc_low_pct}%</td>
-          <td>{rbc_low_avg}%</td>
+          <td>{rbc_low_avg}&#177;{rbc_low_std}%</td>
         </tr>
         <tr class="rbc">
           <td>High</td>
           <td>{rbc_high_pct}%</td>
-          <td>{rbc_high_avg}%</td>
+          <td>{rbc_high_avg}&#177;{rbc_high_std}%</td>
         </tr>
       </table>
     </div>

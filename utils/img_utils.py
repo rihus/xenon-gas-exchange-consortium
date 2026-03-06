@@ -2,24 +2,22 @@
 
 import os
 import sys
-import nibabel as nb
-import logging 
-import cv2
 
-sys.path.append("..")
-from typing import Any, List, Optional, Tuple
+from typing import Optional, Tuple
+
+import cv2
 
 import matplotlib
 
-matplotlib.use("TkAgg")
 import numpy as np
 import skimage
 from scipy import ndimage
-import pandas as pd
 
-import pdb
+from utils import constants, io_utils, metrics
 
-from utils import constants, io_utils
+matplotlib.use("TkAgg")
+
+sys.path.append("..")
 
 
 def remove_small_objects(mask: np.ndarray, scale: float = 0.1):
@@ -64,23 +62,10 @@ def rotate_axial_to_coronal(image: np.ndarray) -> np.ndarray:
     imag = ndimage.rotate(ndimage.rotate(np.imag(image), 90, (1, 2)), 270)
     return real + 1j * imag
 
-def rotate_sagittal_to_coronal(image: np.ndarray) -> np.ndarray:
-    """Rotate sagittal image to coronal.
-
-    Image is assumed to be of complex datatype.
-
-    Args:
-        image (np.ndarray): image viewed in sagittal orientation.
-    Returns:
-        Rotated coronal image.
-    """
-    real = ndimage.rotate(ndimage.rotate(np.real(image), 90, (1, 2)), 180)
-    imag = ndimage.rotate(ndimage.rotate(np.imag(image), 90, (1, 2)), 180)
-    return real + 1j * imag
 
 def flip_and_rotate_image(
     image: np.ndarray, orientation: str = constants.Orientation.CORONAL,
-    system_vendor: str = constants.SystemVendor.SIEMENS
+    system_vendor: str = constants.SystemVendor.PHILIPS.value
 ) -> np.ndarray:
     """Flip and rotate image based on orientation.
 
@@ -90,7 +75,7 @@ def flip_and_rotate_image(
     Returns:
         Flipped and rotated image.
     """
-    
+
     # Siemens vendor code block
     if system_vendor.lower() == constants.SystemVendor.SIEMENS.value.lower():
         if orientation == constants.Orientation.CORONAL:
@@ -98,8 +83,6 @@ def flip_and_rotate_image(
             image = np.rot90(image, 1, axes=(0, 1))
             image = np.flip(np.flip(image, axis=1), axis=2)
             return image
-        elif orientation == constants.Orientation.SAGITTAL:
-            return rotate_sagittal_to_coronal(flip_image_complex(image))
         elif orientation == constants.Orientation.TRANSVERSE:
             return rotate_axial_to_coronal(flip_image_complex(image))
         elif orientation == constants.Orientation.AXIAL:
@@ -111,19 +94,19 @@ def flip_and_rotate_image(
             return image
         else:
             raise ValueError("Orientation not currently supported: {}.".format(orientation))
-    
+
     # Philips vendor code block
     elif system_vendor.lower() == constants.SystemVendor.PHILIPS.value.lower():
         if orientation == constants.Orientation.CORONAL:
             image = np.rot90(np.rot90(image, 3, axes=(1, 2)), 1, axes=(0, 2))
             image = np.flip(image, axis=2)
             return image
-        elif orientation == constants.Orientation.NONE:
+        if orientation == constants.Orientation.NONE:
             return image
-        else:
-            raise ValueError("Orientation not currently supported: {}.".format(orientation))
-    
-    # GE vendor code block 
+
+        raise ValueError("Orientation not currently supported: {}.".format(orientation))
+
+    # GE vendor code block
     elif system_vendor.lower() == constants.SystemVendor.GE.value.lower():
         if orientation == constants.Orientation.CORONAL:
             def complex_rot_axial_iowa(x):
@@ -141,8 +124,7 @@ def flip_and_rotate_image(
             return image
         else:
             raise ValueError("Orientation not currently supported: {}.".format(orientation))
-    
-    
+
     else:
         raise ValueError("Invalid system_vendor: {}.".format(system_vendor))
 
@@ -161,7 +143,7 @@ def standardize_image(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def erode_image(image: np.ndarray, erosion: int) -> np.ndarray:
+def erode_image(image: np.ndarray, erosion: int = 3) -> np.ndarray:
     """Erode image.
 
     Erodes image slice by slice.
@@ -222,15 +204,15 @@ def interp(img: np.ndarray, factor: int = 1):
     """
     img_real = ndimage.zoom(np.real(img), [factor, factor, factor])
     img_imag = ndimage.zoom(np.imag(img), [factor, factor, factor])
+
     return img_real + 1j * img_imag
 
 
 def normalize(
     image: np.ndarray,
     mask: np.ndarray = np.array([0.0]),
-    method: str = constants.NormalizationMethods.PERCENTILE_MASKED,  # default method = PERCENTILE_MASKED
+    method: str = constants.NormalizationMethods.PERCENTILE_MASKED,
     percentile: float = 99.0,
-    bag_volume: float = None # Add bag_volume as a parameter with a default value
 ) -> np.ndarray:
     """Normalize the image to be between [0, 1.0].
 
@@ -244,59 +226,21 @@ def normalize(
     Returns:
         np.ndarray: normalized image
     """
-    # Only require bag_volume when doing FRAC_VENT normalization
-
     if method == constants.NormalizationMethods.MAX:
         return image * 1.0 / np.max(image)
-    elif method == constants.NormalizationMethods.PERCENTILE:
+    if method == constants.NormalizationMethods.PERCENTILE:
         return image * 1.0 / np.percentile(image, percentile)
-    elif method == constants.NormalizationMethods.PERCENTILE_MASKED:
+    if method == constants.NormalizationMethods.PERCENTILE_MASKED:
         image_thre = np.percentile(image[mask], percentile)
         image_n = np.divide(np.multiply(image, mask), image_thre)
         image_n[image_n > 1] = 1
         return image_n
-    elif method == constants.NormalizationMethods.MEAN:
+    if method == constants.NormalizationMethods.MEAN:
         image[np.isnan(image)] = 0
         image[np.isinf(image)] = 0
         return image / np.mean(image[mask])
-    elif method == constants.NormalizationMethods.FRAC_VENT:
 
-        if bag_volume is None or bag_volume in ("None", "NA", "") or pd.isna(bag_volume):
-            raise ValueError(
-                "FRAC_VENT normalization requires bag_volume to be numeric (liters). "
-                f"Got bag_volume={bag_volume!r}. "
-                "Fix: set config.bag_volume to a number (e.g., 1.0–2.0 L) or ensure AGE/SEX/HEIGHT "
-                "are present so predicted bag volume can be computed."
-            )
-        elif not isinstance(bag_volume, (int, float)):
-            logging.info(
-                f"WARNING :FRAC_VENT: bag_volume provided as string {bag_volume!r}; coercing to float.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-
-            bag_volume = float(bag_volume)
-        bag_volume = bag_volume * 1000  # convert L to mL
-        tcv_gas_vol = bag_volume - 10 #new estimate in mL
-        voxel_side = .3125  # cm
-        voxel_vol = voxel_side**3  # cm^3 = ml
-        vent_img_mask = image.copy() 
-        print("vent_img_mask shape:", vent_img_mask.shape)
-        print("mask shape:", mask.shape)
-        vent_img_mask[mask == 0] = 0.0
-        print('image' + str(np.sum(image)))
-        print('vent image mask' + str(np.sum(vent_img_mask)))
-        signal_total = np.sum(vent_img_mask)
-        sig_vol_rat = tcv_gas_vol / signal_total
-        frac_vent = (image * sig_vol_rat) / voxel_vol
-        nifti_img = nb.Nifti1Image(frac_vent, affine=np.eye(4))
-        nifti_img.to_filename('tmp/frac_vent_output.nii')
-        frac_vent_mask = frac_vent[mask == 1]
-        flat_array = frac_vent_mask.flatten()
-        mean = np.mean(flat_array)
-        return frac_vent
-    else:
-        raise ValueError("Invalid normalization method")
+    raise ValueError("Invalid normalization method")
 
 
 def correct_b0(
@@ -307,7 +251,7 @@ def correct_b0(
     Args:
         image (np.ndarray): image to correct.
         mask (np.ndarray): mask of the image. must be same shape as image.
-        max_iterations (int, optional): maximum number of iterations. Defaults to 20.
+        max_iterations (int, optional): maximum number of iterations. Defaults to 100.
     Returns:
         Corrected phase of the corrected image.
     """
@@ -387,18 +331,129 @@ def calculate_rbc_oscillation(
     """
     image_total = image_total.copy()
     image_total[mask == 0] = np.max(image_total[mask > 0])
+
     if method == constants.Methods.ELEMENTWISE:
         return 100 * np.subtract(image_high, image_low) / image_total
+    if method == constants.Methods.MEAN:
+        return (100 * np.subtract(image_high, image_low) / np.abs(np.mean(image_total[mask > 0])))
+    if method == constants.Methods.SMOOTH:
+        return 100 * np.subtract(image_high, image_low) / smooth_image(image_total, kernel= 3)
+    raise ValueError(f"Invalid method: {method}")
+
+def calculate_corrected_rbc_oscillation(
+    image_high: np.ndarray,
+    image_low: np.ndarray,
+    image_total: np.ndarray,
+    rbc2gas: np.ndarray,
+    mask: np.ndarray,
+    age: int,
+    sex: int,
+    height: float,
+    method: str = constants.Methods.SMOOTH,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate RBC oscillations corrected for relative capillary blood volume.
+
+    Args:
+        image_high (np.ndarray): high rbc image.
+        image_low (np.ndarray): low rbc image.
+        image_total (np.ndarray): total image.
+        rbc2gas (np.ndarray): RBC image normalized to gas signal
+        mask(np.ndarray): booleaan mask of the lung. Must be the same size as the images.
+        method (str): method to use for calculating oscillation.
+    Returns:
+        Map of relative capillary blood volume, map of oscillation correction factor,
+        and RBC oscillation image in percentage.
+    """
+    image_total = image_total.copy()
+    image_total[mask == 0] = np.max(image_total[mask > 0])
+
+    relative_vc_map = metrics.relative_vc_map(
+        age,
+        sex,
+        height,
+        rbc2gas,
+        mask,
+    )
+
+    correction_map = np.divide(10.49, ((np.divide(3.73, relative_vc_map)) + 6.76))
+
+    if method == constants.Methods.ELEMENTWISE:
+        return (
+            relative_vc_map,
+            correction_map,
+            np.multiply(
+                correction_map, (100 * np.subtract(image_high, image_low) / image_total)
+            ),
+        )
     elif method == constants.Methods.MEAN:
         return (
-            100
-            * np.subtract(image_high, image_low)
-            / np.abs(np.mean(image_total[mask > 0]))
+            relative_vc_map,
+            correction_map,
+            np.multiply(
+                correction_map,
+                (100 * np.subtract(image_high, image_low) / np.abs(np.mean(image_total[mask > 0]))
+                ),
+            ),
         )
     elif method == constants.Methods.SMOOTH:
-        return 100 * np.subtract(image_high, image_low) / smooth_image(image_total)
+        return (
+            relative_vc_map,
+            correction_map,
+            np.multiply(
+                correction_map,
+                (100 * np.subtract(image_high, image_low) / smooth_image(image_total)),
+            ),
+        )
     else:
-        raise ValueError("Invalid method: {}.".format(method))
+        raise ValueError(f"Invalid method: {method}")
+
+
+def calculate_rbc_oscillation_sliding_window(
+    images: np.ndarray,
+    image_total: np.ndarray,
+    mask: np.ndarray,
+) -> np.ndarray:
+    """Calculate RBC oscillation.
+
+    Args:
+        images(np.ndarray): array of images of shape (n_points, n_points, n_points, n_bins).
+        mask(np.ndarray): booleaan mask of the lung. Must be the same size as the images.
+    Returns:
+        RBC oscillation image in percentage.
+    """
+    # Check if mask dimensions are compatible with the images
+    if mask.shape != images.shape[:-1]:
+        raise ValueError(
+            "Mask shape must be the same as the first three dimensions of the images"
+        )
+    image_total = image_total.copy()
+    image_total[mask == 0] = np.max(image_total[mask > 0])
+    # Calculate the difference between the max and min along the last dimension
+    oscillation = images.max(axis=-1) - images.min(axis=-1)
+
+    # Convert to percentage if needed
+    oscillation_percentage = oscillation * 100 / smooth_image(image_total)
+
+    return oscillation_percentage
+
+
+def mask_image(
+    image: np.ndarray, mask: np.ndarray, method: str = constants.MaskMethods.NONE
+) -> np.ndarray:
+    """Apply mask to image.
+
+    Args:
+        image: the image to mask.
+        mask: the binary mask to apply.
+    Returns:
+        Masked image.
+    """
+    if method == constants.MaskMethods.NONE:
+        return np.multiply(image, mask)
+    if method == constants.MaskMethods.MIN:
+        return np.multiply(image, mask) + np.multiply(np.min(image[mask > 0]), 1 - mask)
+    #
+    raise ValueError("Invalid mask method: {}.".format(method))
 
 
 def approximate_image_with_bspline(
@@ -431,3 +486,19 @@ def approximate_image_with_bspline(
     os.system(cmd)
     # read in the output
     return io_utils.import_nii(pathOutput)
+
+
+def crop_center(image: np.ndarray, image_size: int) -> np.ndarray:
+    """Crop the image to the center.
+
+    Args:
+        image (np.ndarray): 3D image to crop
+        image_size (int): size of the image to crop to.
+    Returns:
+        Cropped image.
+    """
+    if image.shape[0] < image_size:
+        raise ValueError("Image size must be smaller than the image size to crop to.")
+    start = image.shape[0] // 2 - image_size // 2
+    end = start + image_size
+    return image[start:end, start:end, start:end]

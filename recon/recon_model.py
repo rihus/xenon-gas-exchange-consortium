@@ -2,15 +2,14 @@
 import logging
 import sys
 import time
-from abc import ABC, abstractmethod
+from abc import ABC #, abstractmethod
 
 import numpy as np
-
-sys.path.append("..")
 
 from recon import dcf, system_model
 from utils import constants
 
+sys.path.append("..")
 
 class GriddedReconModel(ABC):
     """Reconstruction model after gridding.
@@ -116,12 +115,8 @@ class LSQgridded(GriddedReconModel):
         if self.deapodize:
             if self.verbosity:
                 logging.info("-- Calculating k-space deapodization function")
-            deapVol = self.grid(
-                np.expand_dims((~np.any(traj > 0, axis=1)).astype(np.float32), -1)
-            )
-            deapVol = np.reshape(
-                deapVol, np.ceil(self.system_obj.full_size).astype(int)
-            )
+            deapVol = self.grid(~np.any(traj, axis=1)).astype(np.float32)
+            deapVol = np.reshape(deapVol, np.ceil(self.system_obj.full_size))
             if self.verbosity:
                 logging.info("-- Calculating image-space deapodization function")
             deapVol = np.fft.ifftn(deapVol)

@@ -1,19 +1,26 @@
 """Plotting functions for the project."""
 
 import sys
-from typing import Optional, List, Tuple, Union, Dict
+from typing import Dict, List, Optional, Union, Tuple
 
 import skimage
-from matplotlib.ticker import ScalarFormatter
+
+import numpy as np
 from pathlib import Path
+# import scipy.io as sio
+import matplotlib
 
 import cv2
-import matplotlib.pyplot as plt
-import numpy as np
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
 
-from utils import io_utils
+# matplotlib.use("TkAgg")
+from matplotlib.axes import Axes
 
-import logging
+from spect import nmr_timefit
+from utils import constants, io_utils
+
+sys.path.append("..")
 
 def _to_rgb(c):
     """
@@ -107,6 +114,7 @@ def _load_profile(profile_path: Union[str, Path]):
         raise ValueError(".npy profile must be 2xB = [centers; probs]")
     else:
         raise ValueError(f"Unsupported profile type: {suf}")
+
 
 def _merge_rgb_and_gray(gray_slice: np.ndarray, rgb_slice: np.ndarray) -> np.ndarray:
     """Combine the gray scale image with the RGB binning via HSV.
@@ -257,11 +265,13 @@ def get_plot_indices(image: np.ndarray, n_slices: int = 16) -> Tuple[int, int]:
     sum_line = np.sum(np.sum(image, axis=0), axis=0)
     index_start, index_end = get_biggest_island_indices(sum_line > 300)
     flt_inter = (index_end - index_start) // n_slices
+
     # threshold to decide interval number
     if np.modf(flt_inter)[0] > 0.4:
         index_skip = np.ceil(flt_inter).astype(int)
     else:
         index_skip = np.floor(flt_inter).astype(int)
+
     return index_start, index_skip
 
 
@@ -303,7 +313,7 @@ def make_montage(image: np.ndarray, n_slices: int = 16) -> np.ndarray:
 
 
 def plot_montage_grey(
-    image: np.ndarray, path: str, index_start: int, index_skip: int = 1, mask = None,
+    image: np.ndarray, path: str, index_start: int, index_skip: int = 1
 ):
     """Plot a montage of the image in grey scale.
 
@@ -317,67 +327,8 @@ def plot_montage_grey(
         index_start (int): index to start plotting from.
         index_skip (int, optional): indices to skip. Defaults to 1.
     """
-    
-    # divide by the maximum value
-     # --- Mask-based brightness/contrast scaling ---
-    image = image.copy()  # make a local copy so original data isn’t modified
-
-    if mask is not None and mask.shape == image.shape and np.any(mask):
-        # Compute clipping threshold from pixels inside the mask
-        clip_val = float(np.percentile(image[mask > 0], 99.0))
-
-        if clip_val <= 0:
-            # If the mask has invalid values, just do normal global normalization
-            maxv = np.max(image)
-            if maxv > 0:
-                image = image / maxv
-        else:
-            # Clip intensities to the 99th percentile and rescale
-            image = np.clip(image, 0.0, clip_val)
-            image = image / clip_val  
-    else:
-        # No valid mask → simple normalization for display
-        maxv = np.max(image)
-        if maxv > 0:
-            image = image / maxv
-    # stack the image to make it 4D (x, y, z, 3)
-    image = np.stack((image, image, image), axis=-1)
-    # plot the montage
-    index_end = index_start + index_skip * 16
-    montage = make_montage(
-        image[:, :, index_start:index_end:index_skip, :], n_slices=16
-    )
-    plt.figure()
-    plt.imshow(montage, cmap="gray")
-    plt.axis("off")
-    plt.savefig(path, transparent=True, bbox_inches="tight", pad_inches=-0.05, dpi=300)
-    plt.clf()
-    plt.close()
-
-def plot_montage_grey_mask(
-    image: np.ndarray,mask: np.ndarray, path: str, index_start: int, index_skip: int = 1
-):
-    """Plot a montage of the image in grey scale.
-
-    Will make a montage of 2x8 of the image in grey scale and save it to the path.
-    Assumes the image is of shape (x, y, z) where there are at least 16 slices.
-    Otherwise, will plot all slices.
-
-    The image will be rescale again inside the mask to highlight the content.
-
-    Args:
-        image (np.ndarray): gray scale image to plot of shape (x, y, z)
-        path (str): path to save the image.
-        index_start (int): index to start plotting from.
-        index_skip (int, optional): indices to skip. Defaults to 1.
-    """
-    
     # divide by the maximum value
     image = image / np.max(image)
-    # Then highlight image inside the mask
-    mask = mask.astype(bool)
-    image[mask] = image[mask] / np.max(image[mask])
-
     # stack the image to make it 4D (x, y, z, 3)
     image = np.stack((image, image, image), axis=-1)
     # plot the montage
@@ -430,10 +381,10 @@ def plot_histogram_rbc_osc(
     data: np.ndarray,
     path: str,
     fig_size: Tuple[int, int] = (9, 6),
-    xlim: Tuple[float, float] = (-15, 35),
-    ylim: Tuple[float, float] = (0, 0.2),
-    xticks: List[float] = [-10, 0, 10, 20, 30, 50],
-    yticks: List[float] = [0, 0.05, 0.1, 0.15],
+    xlim: Tuple[float, float] = (-10, 20),
+    ylim: Tuple[float, float] = (0, 0.1),
+    xticks: List[float] = [-5, 0, 5, 10, 15],
+    yticks: List[float] = [0, 0.05, 0.1],
     plot_ref: bool = True,
 ):
     """Plot histogram of RBC oscillation.
@@ -460,7 +411,7 @@ def plot_histogram_rbc_osc(
             alpha=0.0,
             weights=np.ones_like(data_ref) / float(len(data_ref)),
         )
-        ax.plot(0.5 * (bins[1:] + bins[:-1]), n, "--", color="k", linewidth=4)
+        ax.plot(1.2 * (bins[1:] + bins[:-1]), n, "--", color="k", linewidth=4)
     # set plot parameters
     plt.xlim(xlim)
     plt.ylim(ylim)
@@ -565,10 +516,8 @@ def plot_histogram(
         if thresh_style:
             style.update(thresh_style)
         for t in thresholds:
-            y_at_t = np.interp(t,x_ref,y_ref)
             if 0 <= t <= xlim:
-                ax.plot([t, t],[0, y_at_t], **style, zorder=7) #vertical dashed lines to ref curve
-                ax.plot(t, y_at_t,marker='*',markersize=14,color='k',zorder=8) #stars at ref curve
+                ax.axvline(t, **style, zorder=7)
 
     # axes styling
     ax.set_xlim(0, xlim)
@@ -588,6 +537,99 @@ def plot_histogram(
     fig.tight_layout()
     plt.savefig(path, dpi=300)
     plt.close()
+
+
+# def plot_histogram(
+#     data: np.ndarray,
+#     path: str,
+#     color: Tuple[float, float, float],
+#     xlim: float,
+#     ylim: float,
+#     num_bins: int,
+#     refer_fit: Tuple[float, float, float],
+#     xticks: Optional[List[float]] = None,
+#     yticks: Optional[List[float]] = None,
+#     xticklabels: Optional[List[str]] = None,
+#     yticklabels: Optional[List[str]] = None,
+#     xlabel: Optional[str] = None,
+#     title: Optional[str] = None,
+# ):
+#     """Plot histogram of arbitrary data.
+
+#     Args:
+#         data (np.ndarray): data to plot histogram of.
+#         path (str): path to save the image.
+#         color (Tuple[float, float, float]): color of the histogram.
+#         xlim (float): x limit of the histogram.
+#         ylim (float): y limit of the histogram.
+#         num_bins (int): number of bins in the histogram.
+#         refer_fit (Tuple[float, float, float]): fit parameters of the healthy reference.
+#         xticks (Optional[List[float]], optional): x ticks. Defaults to None.
+#         yticks (Optional[List[float]], optional): y ticks. Defaults to None.
+#         xticklabels (Optional[List[str]], optional): x tick labels. Defaults to None.
+#         yticklabels (Optional[List[str]], optional): y tick labels. Defaults to None.
+#         xlabel (Optional[str], optional): x label. Defaults to None.
+#     """
+#     # make a thick frame
+#     plt.rc("axes", linewidth=4)
+#     fig, ax = plt.subplots(figsize=(9, 6))
+#     # the histogram of the data
+#     # limit the range of data
+#     data = data.flatten()
+#     data[data < 0] = 0
+#     data[data > xlim] = xlim
+#     data = np.append(data, xlim)
+#     weights = np.ones_like(data) / float(len(data))
+#     # plot histogram
+#     _, bins, _ = ax.hist(
+#         data, num_bins, color=color, weights=weights, edgecolor="black"
+#     )
+#     # define and plot healthy reference line
+#     normal = refer_fit[0] * np.exp(-(((bins - refer_fit[1]) / refer_fit[2]) ** 2))
+#     ax.plot(bins, normal, "--", color="k", linewidth=4)
+#     plt.xlim((0, xlim))
+#     plt.ylim((0, ylim))
+#     plt.locator_params(axis="x", nbins=4)
+#     try:
+#         plt.xticks(xticks, xticklabels, fontsize=35)
+#         plt.yticks(yticks, yticklabels, fontsize=35)
+#     except TypeError:
+#         plt.xticks(fontsize=40)
+#         plt.yticks(fontsize=40)
+#     if xlabel is not None:
+#         ax.set_xlabel(xlabel, fontsize=30)
+#     if title is not None:
+#         ax.set_title(title, fontsize=30)
+#     # Tweak spacing to prevent clipping of ylabel
+#     fig.tight_layout()
+#     plt.savefig(path)
+#     plt.close()
+
+
+def plot_data_rbc_k0(
+    t: np.ndarray,
+    data: np.ndarray,
+    path: str,
+    high: np.ndarray = np.array([]),
+    low: np.ndarray = np.array([]),
+):
+    """Plot RBC k0 and binned indices."""
+    fig, ax = plt.subplots(figsize=(9, 6))
+    # plot healthy reference line
+    ax.plot(t, data, "-", color="k", linewidth=5)
+    ax.plot(t[high], data[high], ".", color="C2", markersize=10)
+    ax.plot(t[low], data[low], ".", color="C1", markersize=10)
+    ax.plot(t, np.zeros((len(t), 1)), ".", color="k", linewidth=2)
+    ax.set_ylabel("Intensity (au)", fontsize=35)
+    # set plot parameters
+    plt.rc("axes", linewidth=4)
+    plt.xticks([], [])
+    plt.yticks(fontsize=40)
+    # set ticks
+    fig.tight_layout()
+    plt.savefig(path)
+    plt.close()
+
 
 def plot_histogram_with_thresholds(
     data: np.ndarray, thresholds: List[float], path: str
@@ -668,3 +710,606 @@ def plot_histogram_with_thresholds(
     ax.tick_params(axis="x", which="major", labelsize=20)
     plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
     plt.savefig(path)
+
+def plot_time_spect_fit(
+    tdata: np.ndarray,
+    fdata: np.ndarray,
+    fitdata: np.ndarray,
+    ydata: np.ndarray,
+    dwell_time: float,
+    zeropad_size: int,
+    path: str,
+):
+    """Plot the time domain and spectral domain fitting results."""
+
+    plt.figure(figsize=(15, 5))
+    plt.subplot(221)
+
+    ax1 = plt.subplot(1, 3, 1)
+    ax1.plot(tdata, abs(ydata))
+    ax1.plot(tdata, abs(fitdata))
+
+    ax1.legend(["broad time sig", "fit time sig"])
+
+    # calculate fit spectral signal
+    complex_fit_spect = dwell_time * np.fft.fftshift(np.fft.fft(fitdata, zeropad_size))
+    spectral_signal = dwell_time * np.fft.fftshift(np.fft.fft(ydata, zeropad_size))
+    ax2 = plt.subplot(1, 3, 2)
+    ax2.plot(fdata, abs(spectral_signal), "*-")
+    ax2.plot(fdata, abs(complex_fit_spect))
+    ax2.set_xlim((-10000, 10000))
+    ax2.legend(["spectral sig", "fit spect sig"])
+    plt.savefig(path)
+
+
+def plot_1d(x: np.ndarray, path: str = "tmp/1d_plot.png"):
+    """Plot a 1D array.
+
+    Args:
+        x (np.ndarray): 1D array.
+        path (str, optional): path to save the plot. Defaults to "tmp/1d_plot.png".
+    """
+    plt.figure(figsize=(15, 5))
+    plt.plot(x)
+    plt.savefig(path)
+
+
+def plot_dynamics_all(
+    area_dyn: np.ndarray,
+    freq_dyn: np.ndarray,
+    fwhmL_dyn: np.ndarray,
+    phase_dyn: np.ndarray,
+    t_dyn: np.ndarray,
+    start_ind: int,
+    end_ind: int,
+    path: str = "tmp/dynamics.png",
+):
+    """Plot the non-detrended RBC, membrane, gas dynamics.
+
+    Args:
+        area_dyn (np.ndarray): the area of each component of shape (nframes, 3).
+        freq_dyn (np.ndarray): the frequency of each component of shape (nframes, 3).
+        fwhmL_dyn (np.ndarray): the fwhm of each component of shape (nframes, 3).
+        phase_dyn (np.ndarray): the phase of each component of shape (nframes, 3).
+        t_dyn (np.ndarray): the time points of the oscillations of shape (nframes, ).
+        start_ind (int): start index of the oscillations being analyzed.
+        end_ind (int): end index of the oscillations being analyzed.
+        path (str, optional): path to save the plot. Defaults to "tmp/dynamics.png".
+    """
+
+    def set_plot_properties(
+        ax,
+        x_data,
+        y_data,
+        color,
+        x_label=None,
+        y_label=None,
+        ylim=None,
+        legend=None,
+        xticks=[],
+    ):
+        ax.plot(x_data, y_data, color=color, linewidth=5)
+        ax.set_xlim(0, x_data[-1])
+        if ylim:
+            ax.set_ylim(ylim)
+        if x_label:
+            ax.set_xlabel(x_label, fontsize=120)
+        if y_label:
+            ax.set_ylabel(y_label, fontsize=80)
+        if legend:
+            ax.legend(legend, loc="lower right", fontsize=30)
+
+        ax.axvspan(x_data[start_ind], x_data[end_ind], facecolor="gray", alpha=0.5)
+        ax.tick_params(axis="y", labelsize=42)
+        ax.tick_params(axis="x", labelsize=42)
+        ax.set_xticks(xticks)
+
+    # Creating figures with 12 subplots
+    fig, axs = plt.subplots(4, 3, figsize=(58, 42))
+    fig.suptitle("Dynamics By Resonance", fontsize="200", fontweight="bold")
+
+    fg_color = ["red", "green", "blue"]
+    m3rd = np.arange(start_ind, end_ind, 1)
+    plotlim = np.array([[2, 5, 1.5], [1.5, 0.5, 0.5], [5, 5, 0.5], [30, 6, 12]])
+
+    for iComp in range(3):
+        # Amplitude Plot
+        set_plot_properties(
+            ax=axs[0, iComp],
+            x_data=t_dyn[:-5],
+            y_data=area_dyn[:-5, iComp] / max(area_dyn[49:, 2]),
+            color=fg_color[iComp],
+            y_label="Amplitude" if iComp == 0 else None,
+            ylim=[0, np.max(area_dyn[:, iComp]) / np.max(area_dyn[49:, 2])],
+        )
+        # Frequency or Chemical Shift Plot
+        set_plot_properties(
+            ax=axs[1, iComp],
+            x_data=t_dyn,
+            y_data=freq_dyn[:, iComp],
+            color=fg_color[iComp],
+            y_label="Shift (ppm)" if iComp == 0 else None,
+            ylim=[
+                np.mean(freq_dyn[m3rd, iComp]) - plotlim[1, iComp],
+                np.mean(freq_dyn[m3rd, iComp]) + plotlim[1, iComp],
+            ],
+        )
+        # FWHM Lorentzian Plot
+        set_plot_properties(
+            ax=axs[2, iComp],
+            x_data=t_dyn,
+            y_data=fwhmL_dyn[:, iComp],
+            color=fg_color[iComp],
+            y_label="FWHM (ppm)" if iComp == 0 else None,
+            ylim=[
+                np.mean(fwhmL_dyn[m3rd, iComp]) - plotlim[2, iComp],
+                np.mean(fwhmL_dyn[m3rd, iComp]) + plotlim[2, iComp],
+            ],
+        )
+        # Phase Plot
+        set_plot_properties(
+            ax=axs[3, iComp],
+            x_data=t_dyn,
+            y_data=phase_dyn[:, iComp],
+            color=fg_color[iComp],
+            y_label="Phase (deg)" if iComp == 0 else None,
+            ylim=[
+                np.mean(phase_dyn[m3rd, iComp]) - plotlim[3, iComp],
+                np.mean(phase_dyn[m3rd, iComp]) + plotlim[3, iComp],
+            ],
+            xticks=np.arange(0, int(t_dyn[-1]), 2),
+        )
+        axs[3, iComp].tick_params(axis="x", labelsize=48)
+    axs[0, 0].set_title("RBC", color="red", fontsize=120)
+    axs[0, 1].set_title("Membrane", color="green", fontsize=120)
+    axs[0, 2].set_title("Gas", color="blue", fontsize=120)
+    plt.savefig(
+        path,
+        facecolor="w",
+        edgecolor="w",
+        orientation="portrait",
+        format=None,
+        transparent=False,
+        bbox_inches="tight",
+        pad_inches=0.01,
+        metadata=None,
+    )
+
+
+def plot_oscillations_all(
+    area_dyn_detrend: np.ndarray,
+    area_dyn_fit: np.ndarray,
+    area_dyn_indices_peaks: np.ndarray,
+    freq_dyn_detrend: np.ndarray,
+    freq_dyn_fit: np.ndarray,
+    freq_dyn_indices_peaks: np.ndarray,
+    fwhm_dyn_detrend: np.ndarray,
+    fwhm_dyn_fit: np.ndarray,
+    fwhm_dyn_indices_peaks: np.ndarray,
+    phase_dyn_detrend: np.ndarray,
+    phase_dyn_fit: np.ndarray,
+    phase_dyn_indices_peaks: np.ndarray,
+    t_dyn: np.ndarray,
+    path: str = "tmp/oscillations.png",
+):
+    """Plot the oscillations of the area, frequency, fwhm, and phase.
+
+    Args:
+        area_dyn_detrend (np.ndarray): the detrended area of RBC component of
+            shape (nframes, ).
+        area_dyn_fit (np.ndarray): the fitted area of RBC component of shape
+            (nframes, ).
+        freq_dyn_detrend (np.ndarray): the detrended frequency of RBC component of
+            shape (nframes, ).
+        freq_dyn_fit (np.ndarray): the fitted frequency of RBC component of shape
+            (nframes, ).
+        fwhm_dyn_detrend (np.ndarray): the detrended fwhm of RBC component of shape
+            (nframes, ).
+        fwhm_dyn_fit (np.ndarray): the fitted fwhm of RBC component of shape
+            (nframes, ).
+        phase_dyn_detrend (np.ndarray): the detrended phase of RBC component of shape
+            (nframes, ).
+        phase_dyn_fit (np.ndarray): the fitted phase of RBC component of shape
+            (nframes, ).
+        t_dyn (np.ndarray): the time points of the oscillations of shape (nframes, ).
+        path (str, optional): path to save the plot. Defaults to "tmp/oscillations.png".
+    """
+
+    def plot_subplot(
+        ax: Axes,
+        x_data: np.ndarray,
+        detrend_data: np.ndarray,
+        fitted_data: np.ndarray,
+        peak_indices: np.ndarray,
+        y_label: str,
+        ylim: tuple[float, float],
+    ):
+        ax.plot(x_data, detrend_data, "--k", x_data, fitted_data, "r")
+        ax.plot(x_data[peak_indices], detrend_data[peak_indices], "o", color="blue")
+        ax.axhline(linewidth=1, color="k")
+        ax.set_xticks(np.arange(np.ceil(t_dyn[0]), np.ceil(t_dyn[-1]), 2))
+        ax.set_ylabel(y_label, fontsize=24)
+        ax.set_xlim((t_dyn[0], t_dyn[-1]))
+        ax.set_ylim(ylim)
+        ax.tick_params(axis="y", labelsize=26)
+        ax.xaxis.set_tick_params(labelsize=20)
+
+    _, (ax1, ax2, ax3, ax4) = plt.subplots(4, figsize=(14, 15))
+
+    plot_subplot(
+        ax=ax1,
+        x_data=t_dyn,
+        detrend_data=area_dyn_detrend * 100,
+        fitted_data=area_dyn_fit * 100,
+        peak_indices=area_dyn_indices_peaks,
+        y_label="Amplitude",
+        ylim=(-20, 20),
+    )
+    plot_subplot(
+        ax=ax2,
+        x_data=t_dyn,
+        detrend_data=freq_dyn_detrend,
+        fitted_data=freq_dyn_fit,
+        peak_indices=freq_dyn_indices_peaks,
+        y_label="Shift (ppm)",
+        ylim=(-0.5, 0.5),
+    )
+    plot_subplot(
+        ax=ax3,
+        x_data=t_dyn,
+        detrend_data=fwhm_dyn_detrend,
+        fitted_data=fwhm_dyn_fit,
+        peak_indices=fwhm_dyn_indices_peaks,
+        y_label="FWHM (ppm)",
+        ylim=(-0.5, 0.5),
+    )
+    plot_subplot(
+        ax=ax4,
+        x_data=t_dyn,
+        detrend_data=phase_dyn_detrend,
+        fitted_data=phase_dyn_fit,
+        peak_indices=phase_dyn_indices_peaks,
+        y_label="Phase (deg)",
+        ylim=(-10, 10),
+    )
+    ax1.set_title(
+        "Detrended RBC Oscillations", color="red", fontsize=46, fontweight="bold"
+    )
+    ax4.set_xlabel("Time (s)", fontsize=40)
+    plt.savefig(
+        path,
+        facecolor="w",
+        edgecolor="w",
+        orientation="portrait",
+        format=None,
+        transparent=False,
+        bbox_inches="tight",
+        pad_inches=0.01,
+    )
+
+
+def plot_static_spectra(
+    fit_obj: nmr_timefit.NMR_TimeFit,
+    freq_center: float,
+    dwell_time: float,
+    path: str = "tmp/static_spectra.png",
+):
+    """Plot the static spectroscopy fit and the components.
+
+    Args:
+        fit_obj (nmr_timefit.NMR_TimeFit): the fit object.
+        freq_center (float): the center frequency in MHz.
+        dwell_time (float): the dwell time in seconds.
+        path (str, optional): path to save the plot.
+    """
+
+    # Extracting data from fit_obj
+    ref_freq = fit_obj.freq[-1]
+    fdata = (np.linspace(-0.5, 0.5, len(fit_obj.tdata) * 2 + 1) / dwell_time)[0:-1]
+
+    ppm = (fdata - constants.XENON_SHIFT * freq_center - ref_freq) / freq_center
+    ppm_shift = (fit_obj.freq[-1] - ref_freq) / freq_center
+    tplot = np.linspace(fit_obj.tdata[0], 2 * fit_obj.tdata[-1], len(fdata))
+    fit_ref_obj = nmr_timefit.NMR_TimeFit(
+        ydata=np.ones(fit_obj.tdata.shape),
+        tdata=fit_obj.tdata,
+        area=constants.REFERENCEFIT.AREA,
+        freq=constants.REFERENCEFIT.FREQ * freq_center + ref_freq,
+        fwhmL=constants.REFERENCEFIT.FWHM * freq_center,
+        fwhmG=constants.REFERENCEFIT.FWHMG * freq_center,
+        phase=constants.REFERENCEFIT.PHASE + fit_obj.phase[1],
+        method="voigt",
+        line_broadening=0,
+        zeropad_size=np.size(fit_obj.tdata),
+    )
+    spectrum_ref_components = dwell_time * np.fft.fftshift(
+        np.fft.fft(fit_ref_obj.get_time_function_components(tplot), axis=0)
+    )
+    spectrum_components = dwell_time * np.fft.fftshift(
+        np.fft.fft(fit_obj.get_time_function_components(tplot), axis=0)
+    )
+    spectrum = dwell_time * np.fft.fftshift(
+        np.fft.fft(fit_obj.get_time_function(fit_obj.tdata), axis=0)
+    )
+    # Creating figure with 3 subplots
+    _, (ax1, ax2, ax3) = plt.subplots(3, figsize=(12, 9))
+    ax1.plot(
+        ppm - ppm_shift,
+        np.abs(spectrum_ref_components)
+        / np.sum(np.max(abs(spectrum_ref_components[:, 2]))),
+        "k:",
+        linewidth=2.5,
+    )
+
+    colors = ["blue", "red", "green"]
+    for index in range(3):
+        ax1.plot(
+            ppm,
+            abs(spectrum_components[:, index])
+            / np.max(abs(spectrum_components[:, -1])),
+            color=colors[index],
+            linewidth=2.5,
+        )
+
+    # ax1.set_xlabel('Chemical Shift (ppm)', fontsize=9)
+    ax1.set_ylabel("Component Intensity", fontsize=20, fontweight="bold")
+    ax1.set_xlim(150, 250)
+    ax1.set_ylim(0, 1)
+    ax1.invert_xaxis()
+    ax1.set_title("Static Spectroscopy", color="blue", fontsize=48, fontweight="bold")
+
+    ax2.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.real(fit_obj.spectral_signal),
+        ".k",
+        markersize=10,
+        label="Measured",
+    )
+    ax2.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.real(spectrum),
+        "-g",
+        linewidth=2.5,
+        label="Fitted",
+    )
+    ax2.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.real(spectrum - fit_obj.spectral_signal),
+        ".r",
+        markersize=10,
+        label="Residual",
+    )
+    ax2.set_ylabel("Real", fontsize=25, fontweight="bold")
+    ax2.set_xlim(150, 250)
+    ax2.invert_xaxis()
+    ax2.legend(loc="lower right")
+
+    ax3.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.imag(fit_obj.spectral_signal),
+        ".k",
+        markersize=10,
+    )
+    ax3.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.imag(spectrum),
+        "-g",
+        linewidth=2.5,
+    )
+    ax3.plot(
+        (fit_obj.f - ref_freq) / freq_center,
+        np.imag(spectrum - fit_obj.spectral_signal),
+        ".r",
+        markersize=10,
+    )
+    ax3.set_xlabel("Chemical Shift (ppm)", fontsize=32, fontweight="bold")
+    ax3.set_ylabel("Imaginary", fontsize=25, fontweight="bold")
+    ax3.set_xlim(150, 250)
+    ax3.invert_xaxis()
+
+    ax1.xaxis.set_tick_params(labelsize=25)
+    ax1.yaxis.set_tick_params(labelsize=25)
+    ax2.xaxis.set_tick_params(labelsize=25)
+
+    ax2.yaxis.set_tick_params(labelsize=25)
+    ax3.xaxis.set_tick_params(labelsize=25)
+    ax3.yaxis.set_tick_params(labelsize=25)
+    plt.tight_layout()
+
+    plt.savefig(
+        path,
+        facecolor="w",
+        edgecolor="w",
+        orientation="portrait",
+        transparent=False,
+        bbox_inches="tight",
+        pad_inches=0.01,
+    )
+
+
+def plot_dynamic_snr(
+    x: np.ndarray,
+    t: np.ndarray,
+    start_ind: int,
+    end_ind: int,
+    path: str = "tmp/dynamic_snr.png",
+):
+    """Plot the SNR of each FID.
+
+    Args:
+        x (np.ndarray): SNR of each FID of shape (nframes, ).
+        t (np.ndarray): time of each FID of shape (nframes, ).
+        start_ind (int): start index of the oscillations being analyzed.
+        end_ind (int): end index of the oscillations being analyzed.
+        path (str, optional): path to save the plot. Defaults to "tmp/dynamic_snr.png".
+    """
+
+    plt.figure(figsize=(8, 3))
+    plt.plot(t, x)
+    plt.ylim(10, 30)
+    plt.xlim(0, t[-1])
+    plt.yticks(np.arange(10, 31, 5))
+    plt.text(
+        3,
+        27,
+        "Mean SNR: " + str(np.round(np.mean(x), 1)),
+        color="red",
+        fontsize=20,
+        fontweight="bold",
+        ha="center",
+        va="center",
+        bbox=dict(boxstyle="square", facecolor="wheat", alpha=0.5),
+    )
+    plt.ylabel("SNR", fontsize=14, fontweight="bold")
+    plt.xlabel("Time in Seconds", fontsize=14, fontweight="bold")
+    plt.title("Dynamic SNR", fontsize=28, fontweight="bold")
+    plt.axvspan(t[start_ind], t[end_ind], alpha=0.3, color="grey")
+    plt.tick_params(labelsize=10)
+    plt.savefig(
+        path,
+        facecolor="w",
+        edgecolor="w",
+        orientation="portrait",
+        transparent=False,
+        bbox_inches="tight",
+        pad_inches=0.01,
+        metadata=None,
+    )
+
+
+def plot_montage_phase(
+    image: np.ndarray, path: str, index_start: int, index_skip: int = 1
+):
+    """Plot a montage of the phase image in grey scale.
+
+    Will make a montage of 2x8 of the image in grey scale and save it to the path.
+    Assumes the image is of shape (x, y, z) where there are at least 16 slices.
+    Otherwise, will plot all slices.
+
+    Args:
+        image (np.ndarray): gray scale phase image between -180 and 180 deg to plot of shape (x, y, z)
+        path (str): path to save the image.
+        index_start (int): index to start plotting from.
+        index_skip (int, optional): indices to skip. Defaults to 1.
+    """
+    # plot the montage
+    index_end = index_start + index_skip * 16
+    # stack the image to make it 4D (x, y, z, 3)
+    image = np.stack((image, image, image), axis=-1)
+    montage = make_montage(
+        image[:, :, index_start:index_end:index_skip, :], n_slices=16
+    )
+
+    plt.figure()
+    plt.imshow(montage)
+
+    plt.axis("off")
+    plt.savefig(path, transparent=True, bbox_inches="tight", pad_inches=-0.05, dpi=300)
+    plt.clf()
+    plt.close()
+
+
+def plot_complex_montage(image, path, index_start, index_skip):
+    """
+    Plot a montage of a 3D complex-valued image.
+
+    Args:
+        image (np.ndarray): 3D complex-valued image of shape (x, y, z)
+        path (str): path to save the montage image.
+        index_start (int): index to start plotting from.
+        index_end (int): index to end plotting.
+    """
+    index_end = index_start + index_skip * 16
+    # Extract the magnitude and phase of the complex image
+    magnitude = np.abs(image)
+    phase = np.angle(image, deg=True)
+
+    # Normalize magnitude to [0, 1] for display
+    magnitude = (magnitude - magnitude.min()) / (magnitude.max() - magnitude.min())
+
+    # Extract slices based on provided indices
+    magnitude_slices = magnitude[:, :, index_start:index_end:index_skip]
+    phase_slices = phase[:, :, index_start:index_end:index_skip]
+
+    # Create a custom colormap that uses magnitude for intensity and phase for color
+    colors = plt.cm.hsv((phase_slices + 180) / 360.0)  # Convert phase to [0, 1] range
+    colored_slices = colors[..., :3] * magnitude_slices[..., np.newaxis]
+
+    # Prepare the montage grid
+    montage_image = np.zeros((2 * image.shape[0], 8 * image.shape[1], 3))
+
+    # Fill the montage grid with slices
+    for idx in range(colored_slices.shape[2]):
+        row_idx = idx // 8
+        col_idx = idx % 8
+        montage_image[
+            row_idx * image.shape[0] : (row_idx + 1) * image.shape[0],
+            col_idx * image.shape[1] : (col_idx + 1) * image.shape[1],
+            :,
+        ] = colored_slices[:, :, idx]
+
+    # Plot and save the montage
+    plt.figure(figsize=(15, 5))
+    plt.imshow(montage_image)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+def plot_histogram_ventilation(data: np.ndarray, path: str):
+    """Plot histogram of ventilation.
+
+    Args:
+        data (np.ndarray): data to plot histogram of.
+        path (str): path to save the image.
+    """
+    fig, ax = plt.subplots(figsize=(9, 6))
+    data = data.flatten()
+    # normalize the 99th percentile
+    data = data / np.percentile(data, 99)
+    data[data > 1] = 1
+    weights = np.ones_like(data) / float(len(data))
+    # plot histogram
+    _, bins, _ = ax.hist(
+        data,
+        bins=50,
+        color=(0.4196, 0.6824, 0.8392),
+        weights=weights,
+        edgecolor="black",
+    )
+
+    # plot healthy reference line
+    refer_fit = np.array([0.0407, 0.619, 0.196])
+    normal = refer_fit[0] * np.exp(-(((bins - refer_fit[1]) / refer_fit[2]) ** 2))
+    ax.plot(bins, normal, "--", color="k", linewidth=4)
+    ax.set_ylabel("Fraction of Total Pixels", fontsize=35)
+    # set plot parameters
+    plt.xlim((0, 1))
+    plt.ylim((0, 0.06))
+    plt.rc("axes", linewidth=4)
+    # set ticks
+    xticks = [0.0, 0.5, 1.0]
+    yticks = [0.02, 0.04, 0.06]
+    plt.xticks(xticks, ["{:.0f}".format(x) for x in xticks], fontsize=40)
+    plt.yticks(yticks, ["{:.2f}".format(x) for x in yticks], fontsize=40)
+    fig.tight_layout()
+    plt.savefig(path)
+    plt.close()
+
+
+def plot_image_slice(
+    image: np.ndarray,
+    path: str,
+    slice_index: int,
+    vmax: Optional[float] = None,
+    vmin: Optional[float] = None,
+    cmap: str = "gray",
+):
+    """Plot the image slice."""
+    plt.figure()
+    plt.imshow(image[:, :, slice_index], cmap=cmap, vmin=vmin, vmax=vmax)
+    plt.axis("off")
+    plt.savefig(path, transparent=True, bbox_inches="tight", pad_inches=-0.05, dpi=300)
+    plt.clf()
+    plt.close()

@@ -1,6 +1,6 @@
 body {
   background-color: white;
-  font-family: "Roboto", sans-serif;
+  font-family: palatino;
   font-weight: bold;
   color: black;
 }
@@ -15,7 +15,7 @@ body {
 .title-container {
   width: 1340px;
   color: blue;
-  font-size: 26pt;
+  font-size: 28pt;
   border: 10px;
 }
 

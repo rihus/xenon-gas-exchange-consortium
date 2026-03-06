@@ -1,6 +1,7 @@
 body {
   background-color: white;
-  font-family: "Roboto", sans-serif;
+  font-family: palatino;
+  font-weight: bold;
   color: black;
 }
 .title-container {
@@ -38,7 +39,7 @@ body {
   background: black;
 }
 .table-container {
-  width: 300px;
+  width: 180px;
   margin-right: 10px;
   font-size: 12pt;
   float: left;
@@ -78,7 +79,7 @@ h2 {
   position: relative;
   top: -180px;
   right: 30px;
-  color: #353131;
+  color: gray;
 }
 .predict-values {
   position: relative;
@@ -97,8 +98,6 @@ th {
 table {
   table-layout: fixed;
   height: 598px;
-  width: 100%;
-  table-layout: fixed; /
 }
 tr.ven {
   background-color: #cce5ff;
@@ -115,8 +114,4 @@ tr.basic {
 tr.title {
   color: white;
   background-color: #606060;
-}
-th, td {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }

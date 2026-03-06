@@ -6,7 +6,9 @@ import os
 
 import numpy as np
 from absl import app, flags
-from scipy.ndimage import zoom
+from scipy.ndimage import (zoom, binary_fill_holes, iterate_structure, binary_dilation,
+                           generate_binary_structure, binary_erosion)
+from typing import Optional, Literal
 
 from models.model_vnet import vnet
 from utils import constants, img_utils, io_utils
@@ -16,6 +18,75 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("image_type", "vent", "either ute or vent for segmentation")
 flags.DEFINE_string("nii_filepath", "", "nii image file path")
+
+def threshold_mask(arr: np.ndarray,
+    percentile: float = 80.0,
+    morph: Optional[Literal["erode", "dilate"]] = None,  # None | 'erode' | 'dilate'
+    radius: int = 1,                           # structuring element radius (>=1 to have effect)
+    iterations: int = 1,                         # how many times to apply morph op
+    fill_holes: bool = True,                      # ensure no interior holes
+    connectivity: Optional[int] = 2                 # neighborhood connectivity; None -> auto
+) -> np.ndarray:
+    """
+    Create a boolean mask from `arr` where elements strictly greater than the given
+    percentile are True, with optional erosion/dilation and 3D (nD) hole filling.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Input array (2D, 3D, or nD). NaNs are ignored for percentile computation.
+    percentile : float, default=80.0
+        Percentile threshold. Elements strictly '>' this value become True.
+    morph : {'erode', 'dilate', None}, default=None
+        Optional morphological operation on the mask.
+    radius : int, default=1
+        “Radius” of the structuring element. Uses an nD connectivity structure
+        expanded by `radius`. Must be >= 1 to have effect.
+    iterations : int, default=1
+        Number of times to apply the morphological operation.
+    fill_holes : bool, default=True
+        If True, performs nD hole filling to remove interior cavities.
+    connectivity : int or None, default=2
+        Connectivity for the structuring element (1..arr.ndim). For full connectivity
+        use `connectivity=arr.ndim`. If None, defaults to 2 (or to arr.ndim if arr.ndim < 2).
+
+    Returns
+    -------
+    mask : np.ndarray (bool)
+        Boolean mask of the same shape as `arr`.
+    """
+    ##Standardize image
+    arr = np.abs(arr)
+    arr = 255 * (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
+
+    thr = float(np.nanpercentile(arr, percentile))
+
+    # Binary mask: greater than equal to the threshold
+    mask = arr >= thr
+    # Fill interior holes (first pass)
+    if fill_holes:
+        mask = binary_fill_holes(mask)
+    # Optional morphological operation
+    morph = (morph or "").lower()
+    if morph in ("erode", "dilate") and iterations > 0 and radius >= 1:
+        # Determine connectivity (cap within valid range)
+        if connectivity is None:
+            conn = min(max(1, 2), mask.ndim)  # default to 2 when possible
+        else:
+            conn = int(connectivity)
+            conn = min(max(1, conn), mask.ndim)
+        struct = generate_binary_structure(rank=mask.ndim, connectivity=conn)
+        if radius > 1:
+            struct = iterate_structure(struct, radius)
+        if morph == "erode":
+            mask = binary_erosion(mask, structure=struct, iterations=iterations, border_value=0)
+        else:  # 'dilate'
+            mask = binary_dilation(mask, structure=struct, iterations=iterations, border_value=0)
+        # Re-fill holes to guarantee no interior holes after morph
+        if fill_holes:
+            mask = binary_fill_holes(mask)
+
+    return mask
 
 
 def predict(

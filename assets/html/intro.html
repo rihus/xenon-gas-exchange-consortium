@@ -4,21 +4,22 @@
     <meta charset="utf-8" />
     <meta
       name="description"
-      content="Gas Exchange Report with 129Xe MRI-technical report"
+      content="129Xe MRI Gas Exchange and RBC Oscillations Report"
     />
     <meta name="author" content="Sakib Kabir" />
+    <meta name="edits" content="Riaz Hussain" />
     <link
       href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
       rel="stylesheet"
     />
-    <link href="../assets/css/report_reset.css" rel="stylesheet" />
-    <link href="../assets/css/report_intro.css" rel="stylesheet" />
+    <link href="../../assets/css/report_reset.css" rel="stylesheet" />
+    <link href="../../assets/css/report_intro.css" rel="stylesheet" />
     <title>Introduction Page</title>
   </head>
 
   <body>
     <div class="title-container">
-      <p>Gas Exchange Summary of Subject: {subject_id}</p>
+      <p>Gas Exchange and RBC Oscillations Summary of Subject: {subject_id}</p>
     </div>
 
     <div class="table-container">
@@ -30,6 +31,13 @@
           <col class="white" />
           <col class="silver" />
         </colgroup>
+
+        <tr class="basic">
+          <td>
+            <p>Subject ID</p>
+          </td>
+          <td>{subject_id}</td>
+        </tr>
 
         <tr class="basic">
           <td>
@@ -47,9 +55,23 @@
 
         <tr class="basic">
           <td>
-            <p>Software Version</p>
+            <p>Institution</p>
           </td>
-          <td>{software_version}</td>
+          <td>{institution}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>MR Scanner Vendor</p>
+          </td>
+          <td>{system_vendor}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Philips Version</p>
+          </td>
+          <td>{philips_version}</td>
         </tr>
 
         <tr class="basic">
@@ -64,6 +86,13 @@
             <p>Magnetic Field Strength</p>
           </td>
           <td>{field_strength} T</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Dixon Type</p>
+          </td>
+          <td>{scan_type}</td>
         </tr>
 
         <tr class="basic">
@@ -129,33 +158,6 @@
           <td>{shape_image}</td>
         </tr>
 
-        <tr class="basic">
-          <td>
-            <p>Skipped Dissolved FIDs</p>
-          </td>
-          <td>{n_skip_start}</td>
-        </tr>
-
-        <tr class="basic">
-          <td>
-            <p>Remove noisy FIDs</p>
-          </td>
-          <td>{remove_noise}</td>
-        </tr>
-
-        <tr class="basic">
-          <td>
-            <p>Detected Spike Noise FIDs (Gas)</p>
-          </td>
-          <td>{n_gas_removed}</td>
-        </tr>
-
-        <tr class="basic">
-          <td>
-            <p>Detected Spike Noise FIDs (Dissolved)</p>
-          </td>
-          <td>{n_dis_removed}</td>
-        </tr>
       </table>
     </div>
 
@@ -168,6 +170,34 @@
           <col class="white" />
           <col class="silver" />
         </colgroup>
+
+        <tr class="basic">
+          <td>
+            <p>Skipped Dissolved FIDs</p>
+          </td>
+          <td>{n_skip_start}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Remove noisy projections</p>
+          </td>
+          <td>{remove_noise}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Removed Spike Noise FIDs (Gas)</p>
+          </td>
+          <td>{n_gas_removed}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Removed Spike Noise FIDs (Dissolved)</p>
+          </td>
+          <td>{n_dis_removed}</td>
+        </tr>
 
         <tr class="basic">
           <td>
@@ -192,7 +222,7 @@
 
         <tr class="basic">
           <td>
-            <p>Flip correction</p>
+            <p>Diss/Gas Flip-angle Ratio</p>
           </td>
           <td>{flip_angle_factor}</td>
         </tr>
@@ -211,28 +241,23 @@
         </tr>
         <tr class="basic">
           <td>
-            <p>Hb Correction</p>
+            <p>Hb Correction Type</p>
           </td>
           <td>{hb_correction_key}</td>
         </tr>
 
         <tr class="basic">
           <td>
-            <p>Hb Correction Value (g/dL)</p>
+            <p>RBC Hb Correction Factor</p>
           </td>
-          <td>{hb}</td>
+          <td>{rbc_hb_correction_factor}</td>
         </tr>
+
         <tr class="basic">
           <td>
-            <p>Volume Correction</p>
+            <p>Membrane Hb Correction Factor</p>
           </td>
-          <td>{vol_correction_key}</td>
-        </tr>
-       <tr class="basic">
-          <td>
-            <p>Lung Volume Correction Target (L)</p>
-          </td>
-          <td>{corrected_lung_volume}</td>
+          <td>{membrane_hb_correction_factor}</td>
         </tr>
 
         <tr class="basic">
@@ -240,13 +265,6 @@
             <p>Reference Data</p>
           </td>
           <td>{reference_data_key}</td>
-        </tr>
-
-        <tr class="basic">
-          <td>
-            <p>Patient FRC/ Bag Volume</p>
-          </td>
-          <td>{user_lung_volume_value}</td>
         </tr>
 
         <tr class="basic">

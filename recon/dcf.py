@@ -3,15 +3,14 @@
 import logging
 import sys
 import time
-from abc import ABC, abstractmethod
+from abc import ABC #, abstractmethod
 
 import numpy as np
-from scipy.stats import norm
+#from scipy.stats import norm
 
-sys.path.append("..")
 from recon import system_model
 from utils import constants
-
+sys.path.append("..")
 
 class DCF(ABC):
     """Density compensation filter abstract class.
@@ -81,7 +80,7 @@ class IterativeDCF(DCF):
         self.unique_string = "iter" + str(dcf_iterations)
         self.space = constants.DCFSpace.DATASPACE
         # system_obj is a MatrixSystemModel
-        idea_PSFdata = np.ones((system_obj.A._shape[1], 1))
+        idea_PSFdata = np.ones((system_obj.A._shape[1], 1))  # type: ignore
         # reasonable first guess by summing all up
         dcf = np.divide(1, system_obj.A.dot(idea_PSFdata))
         # start timing

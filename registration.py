@@ -41,26 +41,6 @@ def register_ants(
     pathReg = bin_path + "/antsRegistration"
     pathApply = bin_path + "/antsApplyTransforms"
 
-    def convert_bool_to_float(array):
-        """
-        Converts a boolean array to a float32 array.
-
-        Parameters:
-            array (numpy.ndarray): Input array, can be of any dtype.
-
-        Returns:
-            numpy.ndarray: Converted array with dtype float32 if the input is boolean;
-                           otherwise, the original array.
-        """
-        if array.dtype == bool:
-            return array.astype(np.float32)
-        return array
-
-    # Converted the inputs with dtype float32 if the inputs are boolean
-    image_static = convert_bool_to_float(image_static);
-    image_moving1 = convert_bool_to_float(image_moving1);
-    image_moving2 = convert_bool_to_float(image_moving2);
-
     # save the inputs into nii files so the execute N4 can read in
     nii_static = nib.Nifti1Image(abs(image_static), np.eye(4))
     nii_moving2 = nib.Nifti1Image(abs(image_moving2), np.eye(4))
@@ -110,12 +90,12 @@ def register_ants(
     # call the command to apply transformation to image_transform
     os.system(cmd_applyTransform)
     try:
-        moving2_reg = np.around(np.array(nib.load(pathOutputmoving2).get_fdata()))
+        moving2_reg = np.around(np.array(nib.load(pathOutputmoving2).get_fdata()))  # type: ignore
     except FileNotFoundError:
         raise Exception(
             "registration failed, could not find antsRegistration executable"
         )
-    moving1_reg = np.array(nib.load(pathOutputmoving1).get_fdata())
+    moving1_reg = np.array(nib.load(pathOutputmoving1).get_fdata())  # type: ignore
     # remove the generated nii files
     os.remove(pathInputstatic)
     os.remove(pathInputmoving1)
@@ -134,9 +114,9 @@ def main(argv):
     image_moving2_filepath = FLAGS.image_moving2
 
     register_ants(
-        image_static=nib.load(image_static_filepath).get_fdata(),
-        image_moving1=nib.load(image_moving1_filepath).get_fdata(),
-        image_moving2=nib.load(image_moving2_filepath).get_fdata(),
+        image_static=nib.load(image_static_filepath).get_fdata(),  # type: ignore
+        image_moving1=nib.load(image_moving1_filepath).get_fdata(),  # type: ignore
+        image_moving2=nib.load(image_moving2_filepath).get_fdata(),  # type: ignore
     )
 
 

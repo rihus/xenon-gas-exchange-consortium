@@ -2,30 +2,33 @@
 
 import sys
 
-sys.path.append("..")
 from typing import Any, Dict, Optional, Tuple
 
 import ml_collections
 import numpy as np
 import logging
-
 from utils import constants, recon_utils, signal_utils, spect_utils, traj_utils
 
+sys.path.append("..")
 
-def gas_contamination_correction(
-    dict_dis: Dict[str, Any], config: Optional[ml_collections.ConfigDict] = None
-) -> Dict:
+def remove_contamination(dict_dyn: Dict[str, Any], dict_dis: Dict[str, Any]) -> Dict:
     """Remove gas contamination from data."""
+    _, fit_obj = spect_utils.calculate_static_spectroscopy(
+        fid=dict_dyn[constants.IOFields.FIDS_DIS],
+        sample_time=dict_dyn[constants.IOFields.SAMPLE_TIME],
+        tr=dict_dyn[constants.IOFields.TR],
+        center_freq=dict_dyn[constants.IOFields.XE_CENTER_FREQUENCY],
+        rf_excitation=dict_dyn[constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY],
+    )
 
     dict_dis[constants.IOFields.FIDS_DIS] = signal_utils.remove_gasphase_contamination(
         data_dissolved=dict_dis[constants.IOFields.FIDS_DIS],
-        data_gas=dict_dis[constants.IOFields.FIDS_GAS],
-        sample_time=dict_dis[constants.IOFields.SAMPLE_TIME],
-        freq_gas_acq_diss= dict_dis[constants.IOFields.XE_CENTER_FREQUENCY]*dict_dis[constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY]*(-1.0),
-        phase_gas_acq_diss=config.phase_gas_acq_diss,
-        area_gas_acq_diss=config.area_gas_acq_diss,
-        optimized_conta_phase = config.recon.optimized_conta_phase,
-        fa_gas=dict_dis[constants.IOFields.FA_GAS],
+        data_gas=dict_dis[constants.IOFields.FIDS_DIS],
+        sample_time=dict_dyn[constants.IOFields.SAMPLE_TIME],
+        freq_gas_acq_diss=fit_obj.freq[2],
+        phase_gas_acq_diss=fit_obj.phase[2],
+        area_gas_acq_diss=fit_obj.area[2],
+        fa_gas=0.5,
     )
     return dict_dis
 
@@ -57,7 +60,7 @@ def prepare_traj(
         del_x=data_dict[constants.IOFields.GRAD_DELAY_X],
         del_y=data_dict[constants.IOFields.GRAD_DELAY_Y],
         del_z=data_dict[constants.IOFields.GRAD_DELAY_Z],
-        traj_type=config.recon.traj_type if config else constants.TrajType.HALTONSPIRAL,  # type: ignore
+        traj_type=config.recon.traj_type if config else constants.TrajType.HALTONSPIRAL,#type:ignore
     )
     # remove projections at the beginning and end of the trajectory
     shape_traj = traj_x.shape
@@ -71,6 +74,139 @@ def prepare_traj(
     traj = np.stack([traj_x, traj_y, traj_z], axis=-1)
 
     return traj
+
+
+def prepare_data_and_traj_keyhole(
+    data: np.ndarray,
+    traj: np.ndarray,
+    bin_indices: np.ndarray,
+    key_radius: int = 9,
+):
+    """Prepare data and trajectory for keyhole reconstruction.
+
+    Uses bin indices to construct a keyhole mask.
+
+    Args:
+        data: data FIDs of shape (n_projections, n_points)
+        traj: trajectory of shape (n_projections, n_points, 3)
+        bin_indices: indices of binned projections.
+        key_radius: radius of keyhole in pixels.
+    Returns:
+        A tuple of data and trajectory arrays. The data is flattened to a 1D array
+        of shape (K, 1)
+        The trajectory is flattened to a 2D array of shape (K, 3)
+    """
+    data_copy = data.copy()
+    data = data.copy()
+    data[:, 0:key_radius] = 0.0
+    normalization = (
+        np.mean(np.abs(data_copy[bin_indices, 0])) * 1 / np.abs(data_copy[:, 0])
+    )
+    data = data * np.mean(np.abs(data_copy[bin_indices, 0]))
+    data = np.divide(data, np.expand_dims(normalization, -1))
+    data[bin_indices, 0:key_radius] = data_copy[bin_indices, 0:key_radius]
+    data_flatten = np.delete(
+        recon_utils.flatten_data(data), np.where(data.flatten() == 0.0), axis=0
+    )
+
+    traj_flatten = np.delete(
+        recon_utils.flatten_traj(traj), np.where(data.flatten() == 0.0), axis=0
+    )
+    return data_flatten, traj_flatten
+
+
+def prepare_data_and_traj_keyhole_cs(
+    data: np.ndarray,
+    traj: np.ndarray,
+    bin_indices: np.ndarray,
+    dwell_time: float,
+    key_radius: int = 9,
+):
+    """Prepare data and trajectory for keyhole reconstruction.
+
+    Uses bin indices to construct a keyhole mask.
+
+    Args:
+        data: data FIDs of shape (n_projections, n_points)
+        traj: trajectory of shape (n_projections, n_points, 3)
+        high_bin_indices: indices of binned projections.
+        dwell_time: dwell time in seconds
+        key_radius: radius of keyhole in pixels.
+    Returns:
+        A tuple of data, trajectory, decay factor  arrays.
+        The data is flattened to a 1D array of shape (K, 1)
+        The trajectory is flattened to a 2D array of shape (K, 3)
+        The decay factor is flattened to a 1D array of shape (K, 1)
+    """
+    data_copy = data.copy()
+    data = data.copy()
+    data[:, 0:key_radius] = 0.0
+    data[bin_indices, 0:key_radius] = data_copy[bin_indices, 0:key_radius]
+    decay_factor = signal_utils.calculate_decay_factor(
+        data_copy, constants.T2STAR_DISSOLVED_3T, dwell_time=dwell_time
+    )
+    data_flatten = np.delete(
+        recon_utils.flatten_data(data), np.where(data.flatten() == 0.0), axis=0
+    )
+
+    traj_flatten = np.delete(
+        recon_utils.flatten_traj(traj), np.where(data.flatten() == 0.0), axis=0
+    )
+    decay_flatten = np.delete(
+        recon_utils.flatten_data(decay_factor), np.where(data.flatten() == 0.0), axis=0
+    )
+    return data_flatten, traj_flatten, decay_flatten
+
+
+def prepare_data_and_traj_slidingwindow(
+    data: np.ndarray,
+    traj: np.ndarray,
+    bin_indices: list[np.ndarray],
+    key_radius: int = 9,
+):
+    """Prepare data and trajectory for keyhole sliding window reconstruction.
+
+    Uses bin indices to construct a keyhole mask.
+
+    Args:
+        data: data FIDs of shape (n_projections, n_points)
+        traj: trajectory of shape (n_projections, n_points, 3)
+        bin_indices: indices of binned projections of shape (n_indices, n_bins)
+        key_radius: radius of keyhole in pixels.
+    Returns:
+        A tuple of data and trajectory lists. The data is flattened to a list of 1D array
+        of shape (K, 1)
+        The trajectory is flattened to a list of 2D arrays of shape (K, 3)
+    """
+    data_copy = data.copy()
+    data = data.copy()
+    data[:, 0:key_radius] = 0.0
+    normalization = np.abs(data_copy[:, 0])
+
+    data = np.repeat(data[:, :, np.newaxis], len(bin_indices), axis=2)
+    data_flatten = []
+    traj_flatten = []
+    # for i in range(len(bin_indices)):
+    for i, bin_index in enumerate(bin_indices):
+        data[:, :, i] = data[:, :, i] * np.mean(np.abs(data_copy[bin_index, 0]))
+        data[:, :, i] = np.divide(data[:, :, i], np.expand_dims(normalization, -1))
+        data[bin_index, 0:key_radius, i] = data_copy[bin_index, 0:key_radius]
+        data_flatten.append(
+            np.delete(
+                recon_utils.flatten_data(data[:, :, i]),
+                np.where(data[:, :, i].flatten() == 0.0),
+                axis=0,
+            )
+        )
+        traj_flatten.append(
+            np.delete(
+                recon_utils.flatten_traj(traj),
+                np.where(data[:, :, i].flatten() == 0.0),
+                axis=0,
+            )
+        )
+
+    return data_flatten, traj_flatten
 
 
 def normalize_data(data: np.ndarray, normalization: np.ndarray) -> np.ndarray:
@@ -127,3 +263,36 @@ def remove_noisy_projections(
         indices=np.array(indices),
     )
     return data, traj
+
+
+def remove_noisy_projections_interleaved(
+    data_gas: np.ndarray,
+    traj_gas: np.ndarray,
+    data_dis: np.ndarray,
+    traj_dis: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Remove noisy projections from data and trajectory.
+    Args:
+        data_gas: gas phase data FIDs of shape (n_projections, n_points)
+        traj_gas: gas phase trajectory of shape (n_projections, n_points, 3)
+        data_dis: dissolved phase data FIDs of shape (n_projections, n_points)
+        traj_dis: dissolved phase trajectory of shape (n_projections, n_points, 3)
+    Returns:
+        Tuple of data, trajectory of both phases with noisy projections removed
+    """
+    # remove noisy radial projections
+    indices_gas = recon_utils.get_noisy_projections(data=data_gas)
+    indices_dis = recon_utils.get_noisy_projections(data=data_dis)
+    # ensure that same projections are removed for dissolved and gas
+    indices = np.logical_and(indices_dis, indices_gas)
+    data_gas, traj_gas = recon_utils.apply_indices_mask(
+        data=data_gas,
+        traj=traj_gas,
+        indices=np.array(indices),
+    )
+    data_dis, traj_dis = recon_utils.apply_indices_mask(
+        data=data_dis,
+        traj=traj_dis,
+        indices=np.array(indices),
+    )
+    return data_gas, traj_gas, data_dis, traj_dis

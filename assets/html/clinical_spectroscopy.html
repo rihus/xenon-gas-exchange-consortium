@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="description"
+      content="Gas Exchange Report with 129Xe MRI-technical report"
+    />
+    <meta name="author" content="Sakib Kabir" />
+    <meta name="edits" content="Riaz Hussain" />
+    <link href="../../assets/css/report_reset_spectroscopy.css" rel="stylesheet" />
+    <link href="../../assets/css/report_style_spectroscopy.css" rel="stylesheet" />
+    <title>Spectroscopy Report</title>
+  </head>
+  <body>
+    <div class="title-container">
+      <h1 id="big-title">Spectroscopy Summary of {subject_id}</h1>
+      <h5 id="date-title">scan: {scan_date}; processed: {process_date}</h5>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <caption>
+          Static Spectroscopy
+        </caption>
+        <colgroup>
+          <col class="white" />
+          <col class="red" />
+          <col class="silver" />
+          <col class="green" />
+          <col class="silver" />
+        </colgroup>
+        <tr class="title">
+          <th>Parameters</th>
+          <th>RBC</th>
+          <th>RBC ref.</th>
+          <th>Membrane</th>
+          <th>M. ref.</th>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Intensity</p>
+            <p>Ratio*</p>
+          </td>
+
+          <td>{rbc_area}</td>
+          <td>{rbc_area_ref}&#177;{rbc_area_std}</td>
+          <td>{membrane_area}</td>
+          <td>{membrane_area_ref}</td>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Shift</p>
+            <p>(ppm)</p>
+          </td>
+
+          <td>{rbc_shift_ppm}</td>
+          <td>{rbc_shift_ref_ppm}&#177;{rbc_shift_std_ppm}</td>
+          <td>{membrane_shift_ppm}</td>
+          <td>{membrane_shift_ref_ppm}&#177;{membrane_shift_std_ppm}</td>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>FWHM</p>
+            <p>(ppm)</p>
+          </td>
+
+          <td>{rbc_fwhm_ppm}</td>
+          <td>{rbc_fwhm_ref_ppm} &#177;{rbc_fwhm_std_ppm}</td>
+          <td>{membrane_fwhm_ppm}</td>
+          <td>{membrane_fwhm_ref_ppm}&#177;{membrane_fwhm_std_ppm}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>FWHMg</p>
+            <p>(ppm)</p>
+          </td>
+
+          <td>-</td>
+          <td>-</td>
+          <td>{membrane_fwhmg_ppm}</td>
+          <td>{membrane_fwhmg_ref_ppm}&#177;{membrane_fwhmg_std_ppm}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Phase</p>
+            <p>(degrees)</p>
+          </td>
+
+          <td>{rbc_phase}</td>
+          <td>{rbc_phase_ref}&#177;{rbc_phase_std}</td>
+          <td>{membrane_phase}</td>
+          <td>{membrane_phase_ref}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>1 sec. SNR</p>
+            <p>(amp/noise)</p>
+          </td>
+
+          <td>{rbc_nfid_snr}</td>
+          <td>-</td>
+          <td>{membrane_nfid_snr}</td>
+          <td>-</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="staticfigure-container">
+      <img src="../../tmp/png/static_spectra.png" style="width: 100%" />
+    </div>
+
+    <div class="RBC_osci_figure-container">
+      <img src="../../tmp/png/oscillations.png" style="width: 100%" />
+    </div>
+
+    <div class="dynamicSNR-container">
+      <img src="../../tmp/png/dynamic_snr.png" style="width: 100%" />
+    </div>
+
+    <div class="RBCosi_table-container">
+      <table>
+        <caption>
+          RBC Oscillation Amplitude*
+        </caption>
+        <colgroup>
+          <col class="white" />
+          <col class="red" />
+          <col class="red" />
+          <col class="silver" />
+        </colgroup>
+
+        <tr class="title">
+          <th>Parameters</th>
+          <th>Amplitude(sine)</th>
+          <th>Amplitude(peaks)</th>
+          <th>Ref. Values</th>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Amplitude (%)</p>
+          </td>
+
+          <td>{rbc_amplitude_area}</td>
+          <td>{rbc_amplitude_area_peaks}</td>
+          <td>{rbc_amplitude_area_ref}&#177;{rbc_amplitude_area_std}%</td>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Chemical Shift</p>
+            <p>(ppm)</p>
+          </td>
+          <td>{rbc_amplitude_freq_ppm}</td>
+          <td>{rbc_amplitude_freq_ppm_peaks}</td>
+          <td>{rbc_amplitude_freq_ref}&#177;{rbc_amplitude_freq_std}</td>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Linewidth</p>
+            <p>(ppm)</p>
+          </td>
+
+          <td>{rbc_amplitude_fwhm_ppm}</td>
+          <td>{rbc_amplitude_fwhm_ppm_peaks}</td>
+          <td>{rbc_amplitude_fwhm_ref}&#177;{rbc_amplitude_fwhm_std}</td>
+        </tr>
+
+        <tr class="basic">
+          <td>
+            <p>Phase</p>
+            <p>(degrees)</p>
+          </td>
+          <td>{rbc_amplitude_phase}</td>
+          <td>{rbc_amplitude_phase_peaks}</td>
+          <td>{rbc_amplitude_phase_ref}&#177;{rbc_amplitude_phase_std}</td>
+        </tr>
+        <tr class="basic">
+          <td>
+            <p>Heart rate (bpm)</p>
+          </td>
+          <td>{heart_rate}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="staticSpec_Text">*normalized to Membrane peak</div>
+
+    <div class="dynamicsResonance-container">
+      <img src="../../tmp/png/dynamics.png" style="width: 100%" />
+    </div>
+  </body>
+</html>

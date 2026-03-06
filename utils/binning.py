@@ -1,8 +1,8 @@
 """Image binning util functions.
 
 Currently supports linear binning.
-"""
 
+"""
 import numpy as np
 
 
