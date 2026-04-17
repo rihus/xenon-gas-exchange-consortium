@@ -6,9 +6,8 @@ from typing import Any, Dict
 import ismrmrd
 import numpy as np
 
+from utils import constants, signal_utils
 sys.path.append("..")
-from utils import constants
-
 
 def get_subject_id(
     header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader,
@@ -376,248 +375,10 @@ def get_TR_dissolved(header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader) ->
     # tr_dissolved_to_gas = header.sequenceParameters.TR[1] ##TODO cound't read this: RH
     return (2 * tr_gas_to_dissolved) * 1e-3 # + tr_dissolved_to_gas
 
-##TODO: Need to see why this function is not working... reveerting to old functions for now: RH
-# def get_gx_data(dataset: ismrmrd.hdf5.Dataset, multi_echo: bool) -> Dict[str, Any]:
-#     """Get the FID acquisition data from dixon MRD file.
 
-#     Args:
-#         dataset: ismrmrd dataset object
-#     Returns:
-#         a dictionary containing
-#             - all raw fids of shape (number of projections for gas and dissolved phase combined,
-#                 number of points in ray)
-#             - gas phase fids in shape (number of projections, number of points in ray)
-#             - dissolved phase fids in shape (number fo projections, number of points in ray)
-#             - k space trajectory of gas and dissolved acquisitions (for standard 1 pt Dixon
-#                 these are the same)
-#     """
-#     # get the raw FIDs, contrast labels, and bonus spectra labels
-#     raw_fids = []
-#     raw_traj = []
-#     bonus_spectra_fids = []
-
-#     contrast_labels = []
-#     bs_contrast_labels = []
-
-#     set_labels = []
-#     set_included = True
-#     n_projections = dataset.number_of_acquisitions()
-
-#     for i in range(0, int(n_projections)):
-#         acquisition_header = dataset.read_acquisition(i).getHead()
-
-#         bonus_spectra_flag = acquisition_header.measurement_uid
-#         if bonus_spectra_flag:
-#             bonus_spectra_fids.append(dataset.read_acquisition(i).data[0].flatten())
-#             bs_contrast_labels.append(acquisition_header.idx.contrast)
-
-#         else:
-
-#             raw_fids.append(dataset.read_acquisition(i).data[0].flatten())
-#             contrast_labels.append(acquisition_header.idx.contrast)
-#             raw_traj.append(dataset.read_acquisition(i).traj)
-#             try:
-#                 set_labels.append(acquisition_header.idx.set)
-#             except:
-#                 set_included = False
-
-#     bonus_spectra_fids = np.asarray(bonus_spectra_fids)
-#     bs_contrast_labels = np.asarray(bs_contrast_labels)
-
-#     raw_fids_truncated = np.asarray(raw_fids)
-#     contrast_labels_truncated = np.asarray(contrast_labels)
-#     set_labels_truncated = np.asarray(set_labels)
-#     raw_traj = np.asarray(raw_traj)
-#     logging.info(f"########set included flag: : {set_included} #########")
-#     if set_included:
-#         unique_set_labels = np.unique(set_labels_truncated)
-
-#         gas_fids_all = []
-#         dis_fids_all = []
-#         gas_trajectories_all = []
-#         dis_trajectories_all = []
-
-#         for set_label in unique_set_labels:
-#             gas_fids_set = raw_fids_truncated[
-#                 (contrast_labels_truncated == constants.ContrastLabels.GAS) & (
-#                     set_labels_truncated == set_label)]
-#             dis_fids_set = raw_fids_truncated[
-#                 (contrast_labels_truncated == constants.ContrastLabels.DISSOLVED) & (
-#                     set_labels_truncated == set_label)]
-#             gas_traj_set = raw_traj[
-#                 (contrast_labels_truncated == constants.ContrastLabels.GAS) & (
-#                     set_labels_truncated == set_label)]
-#             dis_traj_set = raw_traj[
-#                 (contrast_labels_truncated == constants.ContrastLabels.DISSOLVED) & (
-#                     set_labels_truncated == set_label)]
-
-#             if gas_fids_set.size > 0 and not np.all(gas_fids_set == 0):
-#                 gas_fids_all.append(np.expand_dims(gas_fids_set, axis=-1))
-#                 gas_trajectories_all.append(np.expand_dims(gas_traj_set, axis=-1))
-#             if dis_fids_set.size > 0 and not np.all(dis_fids_set == 0):
-#                 dis_fids_all.append(np.expand_dims(dis_fids_set, axis=-1))
-#                 dis_trajectories_all.append(np.expand_dims(dis_traj_set, axis=-1))
-
-
-#         gas_fids_all = np.concatenate(gas_fids_all, axis=-1)
-#         dis_fids_all = np.concatenate(dis_fids_all, axis=-1)
-#         gas_trajectories_all = np.concatenate(gas_trajectories_all, axis=-1)
-#         dis_trajectories_all = np.concatenate(dis_trajectories_all, axis=-1)
-
-#         if multi_echo:
-#             all_traj = [gas_trajectories_all , dis_trajectories_all]
-#             return {
-#                 constants.IOFields.FIDS: raw_fids_truncated,
-#                 constants.IOFields.FIDS_GAS: gas_fids_all,
-#                 constants.IOFields.FIDS_DIS: dis_fids_all,
-#                 constants.IOFields.TRAJ: all_traj,
-#             }
-#         else:
-#             all_traj = [gas_trajectories_all[...,0] , dis_trajectories_all[...,0]]
-#             return {
-#                 constants.IOFields.FIDS: raw_fids_truncated,
-#                 constants.IOFields.FIDS_GAS: gas_fids_all[...,0],
-#                 constants.IOFields.FIDS_DIS: dis_fids_all[...,0],
-#                 constants.IOFields.TRAJ: all_traj,
-#             }
-
-#     else:
-#         gas_traj = raw_traj[
-#                 contrast_labels_truncated == constants.ContrastLabels.GAS, :, :
-#             ]
-
-#         dis_traj = raw_traj[
-#                 contrast_labels_truncated == constants.ContrastLabels.DISSOLVED, :, :
-#             ]
-
-#         all_traj = [gas_traj , dis_traj]
-#         logging.info(f"########all traj: : {len(all_traj)} #########")
-
-#         return {
-#             constants.IOFields.FIDS: raw_fids_truncated,
-#             constants.IOFields.FIDS_GAS: raw_fids_truncated[
-#                 contrast_labels_truncated == constants.ContrastLabels.GAS, :
-#             ],
-#             constants.IOFields.FIDS_DIS: raw_fids_truncated[
-#                 contrast_labels_truncated == constants.ContrastLabels.DISSOLVED, :
-#             ],
-#             constants.IOFields.TRAJ: all_traj,
-#         }
-
-def mrd_headerRead(header):
-    """This function will take mrd header object and create header dictionary
-    for the report and calculation"""
-
-    mrd_headerDict = {}
-
-    # subject information
-
-    # patient information
-
-    # acquisition system information
-    mrd_headerDict["system"] = header.acquisitionSystemInformation.systemVendor
-    mrd_headerDict[
-        "mag_strength"
-    ] = header.acquisitionSystemInformation.systemFieldStrength_T
-    mrd_headerDict["ins_name"] = header.acquisitionSystemInformation.institutionName
-
-    if mrd_headerDict["ins_name"] == None:
-        mrd_headerDict["ins_name"] = "Cincinnati"
-
-    # encoding
-    enc = header.encoding[0]
-    mrd_headerDict[
-        "matrixSize"
-    ] = enc.reconSpace.matrixSize.z  # image should be reconstructed at this
-    mrd_headerDict["FOV"] = int(enc.reconSpace.fieldOfView_mm.x / 10.0)  # 40
-
-    try:
-        mrd_headerDict["dwell_time"] = enc.trajectoryDescription.userParameterDouble[
-            0
-        ].value  # 10
-    except:
-        mrd_headerDict["dwell_time"] = 20
-
-    # Reading/converting RF excitation
-    try:
-        gasExciFreq = enc.trajectoryDescription.userParameterDouble[2].value  # in Hz
-        disExciFreq = enc.trajectoryDescription.userParameterDouble[3].value  # in Hz
-        excitation = disExciFreq - gasExciFreq
-
-        gyro_ratio = 11.777  # gyromagnetic ratio of 129Xe in MHz/Tesla
-        mrd_headerDict["RF_excitation"] = round(
-            excitation / (gyro_ratio * mrd_headerDict["mag_strength"]), 1
-        )
-        #logging.info("@@@@@@@@@@@@@@@@@@")
-        #logging.info(gasExciFreq )
-    except:
-        try:
-            mrd_headerDict["RF_excitation"] = round(
-                header.userParameters.userParameterDouble[0].value
-            )
-        except:
-            mrd_headerDict["RF_excitation"] = 0
-
-    # Institution specific paramters >>>>>
-    if mrd_headerDict["ins_name"] == "University of Iowa":
-        mrd_headerDict["TE90"] = np.round(
-            header.sequenceParameters.TE[0] * 1000 * 1000, 2
-        )  # 458 here # 500 for Duke
-        mrd_headerDict["tr_dis"] = np.round(
-            2 * header.sequenceParameters.TR[0] * 1000
-        )  # 15; mrd header -> 0.0075
-        mrd_headerDict["gasFA"] = 0.5  # not sure about this
-        mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 20
-        #mrd_headerDict["scan_date"] = header.studyInformation.studyDate
-        scan_date = header.measurementInformation.frameOfReferenceUID
-        mrd_headerDict["scan_date"] = (
-            "Sup" + "-" + "Date" + "-" + "NorealDate"
-        )  # YYYY-MM-DD
-
-    elif mrd_headerDict["ins_name"] == "St. Joseph's Healthcare Hamilton":  # Mcmaster
-        mrd_headerDict[
-            "TE90"
-        ] = 450  # np.round(header.sequenceParameters.TE[0] * 1000, 2) # 470.6; 500 for Duke
-        mrd_headerDict["tr_dis"] = np.round(
-            2 * header.sequenceParameters.TR[0] * 1000
-        )  # TR is 4.24
-        mrd_headerDict["gasFA"] = 0.5  # not sure about this
-        mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[0]  # 20
-        mrd_headerDict["scan_date"] = header.studyInformation.studyDate
-
-    elif (
-        mrd_headerDict["ins_name"] == "Cincinnati"
-        or mrd_headerDict["ins_name"] == "CCHMC"
-    ):
-        mrd_headerDict["TE90"] = (
-            header.sequenceParameters.TE[0] * 1000
-        )  # 470.6 ; 500 for Duke
-        mrd_headerDict["tr_dis"] = 2 * header.sequenceParameters.TR[0]  # TR is 4.24
-        mrd_headerDict["gasFA"] = header.sequenceParameters.flipAngle_deg[0]  # 0.5
-        mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 15
-        scan_date = header.measurementInformation.frameOfReferenceUID
-        mrd_headerDict["scan_date"] = (
-            scan_date[:4] + "-" + scan_date[4:6] + "-" + scan_date[6:]
-        )  # YYYY-MM-DD
-
-    else:
-        scan_date = header.measurementInformation.frameOfReferenceUID
-        mrd_headerDict["scan_date"] = (
-            scan_date[:4] + "-" + scan_date[4:6] + "-" + scan_date[6:]
-        )  # YYYY-MM-DD
-        mrd_headerDict["gasFA"] = header.sequenceParameters.flipAngle_deg[0]  # 0.5
-        mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 15
-
-    # # Siemens software version - not required for other vendors/institution
-    # try:
-    #     mrd_headerDict["software_version"] = twix_obj.hdr.Dicom.SoftwareVersions
-    # except:
-    #     mrd_headerDict["software_version"] = "NA"
-
-    return mrd_headerDict
-
-def get_gx_data(dataset: ismrmrd.hdf5.Dataset) -> Dict[str, Any]:
+def get_gx_data(dataset: ismrmrd.hdf5.Dataset, multi_echo: bool) -> Dict[str, Any]:
     """Get the FID acquisition data from dixon MRD file.
+
     Args:
         dataset: ismrmrd dataset object
     Returns:
@@ -629,50 +390,287 @@ def get_gx_data(dataset: ismrmrd.hdf5.Dataset) -> Dict[str, Any]:
             - k space trajectory of gas and dissolved acquisitions (for standard 1 pt Dixon
                 these are the same)
     """
-    # Reading the dataset
-    dset = dataset
-    nFids = dset.number_of_acquisitions()
+    # get the raw FIDs, contrast labels, and bonus spectra labels
+    raw_fids = []
+    raw_traj = []
+    bonus_spectra_fids = []
 
-    # Getting Information from the Header associated with the scan
-    header = ismrmrd.xsd.CreateFromDocument(dset.read_xml_header())
-    mrd_headerDict = mrd_headerRead(header)
+    contrast_labels = []
+    bs_contrast_labels = []
 
-    # Prepare the K-space and trajectories >>>>>>>>>>>>>>
-    ## ======================= Reshaping K-space =============================
-    k_space_reshaped_all = []
-    nFrames = dset.number_of_acquisitions()
-    npts_fid = dset.read_acquisition(0).data[0].shape[0]  # 64 for cchmc
+    set_labels = []
+    set_included = True
+    n_projections = dataset.number_of_acquisitions()
 
-    for i in range(0, nFrames):
-        k_space_reshaped = dset.read_acquisition(i).data[0].reshape(1, npts_fid)
-        k_space_reshaped_all.append(k_space_reshaped)
+    for i in range(0, int(n_projections)):
+        acquisition_header = dataset.read_acquisition(i).getHead()
 
-    data_dixon = np.concatenate(k_space_reshaped_all, axis=0)
+        bonus_spectra_flag = acquisition_header.measurement_uid
+        if bonus_spectra_flag:
+            bonus_spectra_fids.append(dataset.read_acquisition(i).data[0].flatten())
+            bs_contrast_labels.append(acquisition_header.idx.contrast)
 
-    # Separating Gas and Dissolved Fids
-    data_gas = data_dixon[0::2, :]
-    nFrames_gas_all = data_gas.shape[0]
+        else:
 
-    data_dis_all = data_dixon[1::2, :]
-    data_dis = data_dis_all
-    ## ===================== Reshaping trajectories ===========================
-    traj_list_all = []
-    traj_all = np.empty((nFrames, npts_fid, 3))
+            raw_fids.append(dataset.read_acquisition(i).data[0].flatten())
+            contrast_labels.append(acquisition_header.idx.contrast)
+            raw_traj.append(dataset.read_acquisition(i).traj)
+            try:
+                set_labels.append(acquisition_header.idx.set)
+            except:
+                set_included = False
 
-    for i in range(0, nFrames):
-        traj_all[i, :, :] = dset.read_acquisition(i).traj
+    bonus_spectra_fids = np.asarray(bonus_spectra_fids)
+    bs_contrast_labels = np.asarray(bs_contrast_labels)
 
-    # # Separate Gas and Dissolved Trajectories - here gas and dissolved trajs are same
-    traj_gas = traj_all[0::2, :].astype(np.float64)
-    traj_dis = traj_all[1::2, :].astype(np.float64)
+    raw_fids_truncated = np.asarray(raw_fids)
+    contrast_labels_truncated = np.asarray(contrast_labels)
+    set_labels_truncated = np.asarray(set_labels)
+    raw_traj = np.asarray(raw_traj)
+    logging.info("raw_traj_shape in get_gx_data: %s", raw_traj.shape)
 
-    return {
-        constants.IOFields.FIDS: data_dixon,
-        constants.IOFields.FIDS_GAS: data_gas,
-        constants.IOFields.FIDS_DIS: data_dis,
-        constants.IOFields.TRAJ: [traj_gas,traj_dis],
-        "matrix_size": mrd_headerDict["matrixSize"]
-    }
+    if set_included:
+        unique_set_labels = np.unique(set_labels_truncated)
+
+        gas_fids_all = []
+        dis_fids_all = []
+        gas_trajectories_all = []
+        dis_trajectories_all = []
+
+        for set_label in unique_set_labels:
+            gas_fids_set = raw_fids_truncated[
+                (contrast_labels_truncated == constants.ContrastLabels.GAS) & (
+                    set_labels_truncated == set_label)]
+            dis_fids_set = raw_fids_truncated[
+                (contrast_labels_truncated == constants.ContrastLabels.DISSOLVED) & (
+                    set_labels_truncated == set_label)]
+            gas_traj_set = raw_traj[
+                (contrast_labels_truncated == constants.ContrastLabels.GAS) & (
+                    set_labels_truncated == set_label)]
+            dis_traj_set = raw_traj[
+                (contrast_labels_truncated == constants.ContrastLabels.DISSOLVED) & (
+                    set_labels_truncated == set_label)]
+
+            if gas_fids_set.size > 0 and not np.all(gas_fids_set == 0):
+                gas_fids_all.append(np.expand_dims(gas_fids_set, axis=-1))
+                gas_trajectories_all.append(np.expand_dims(gas_traj_set, axis=-1))
+            if dis_fids_set.size > 0 and not np.all(dis_fids_set == 0):
+                dis_fids_all.append(np.expand_dims(dis_fids_set, axis=-1))
+                dis_trajectories_all.append(np.expand_dims(dis_traj_set, axis=-1))
+
+        gas_fids_all = np.concatenate(gas_fids_all, axis=-1)
+        dis_fids_all = np.concatenate(dis_fids_all, axis=-1)
+        gas_trajectories_all = np.concatenate(gas_trajectories_all, axis=-1)
+        dis_trajectories_all = np.concatenate(dis_trajectories_all, axis=-1)
+
+        if multi_echo:
+            all_traj = [gas_trajectories_all , dis_trajectories_all]
+            return {
+                constants.IOFields.FIDS: raw_fids_truncated,
+                constants.IOFields.FIDS_GAS: gas_fids_all,
+                constants.IOFields.FIDS_DIS: dis_fids_all,
+                constants.IOFields.TRAJ: all_traj,
+            }
+        else:
+            all_traj = [gas_trajectories_all[...,0] , dis_trajectories_all[...,0]]
+            return {
+                constants.IOFields.FIDS: raw_fids_truncated,
+                constants.IOFields.FIDS_GAS: gas_fids_all[...,0],
+                constants.IOFields.FIDS_DIS: dis_fids_all[...,0],
+                constants.IOFields.TRAJ: all_traj,
+            }
+
+    else:
+        gas_traj = raw_traj[
+                contrast_labels_truncated == constants.ContrastLabels.GAS, :, :
+            ]
+
+        dis_traj = raw_traj[
+                contrast_labels_truncated == constants.ContrastLabels.DISSOLVED, :, :
+            ]
+
+        all_traj = [gas_traj , dis_traj]
+
+        return {
+            constants.IOFields.FIDS: raw_fids_truncated,
+            constants.IOFields.FIDS_GAS: raw_fids_truncated[
+                contrast_labels_truncated == constants.ContrastLabels.GAS, :
+            ],
+            constants.IOFields.FIDS_DIS: raw_fids_truncated[
+                contrast_labels_truncated == constants.ContrastLabels.DISSOLVED, :
+            ],
+            constants.IOFields.TRAJ: all_traj,
+        }
+
+# def mrd_headerRead(header):
+#     """This function will take mrd header object and create header dictionary
+#     for the report and calculation"""
+
+#     mrd_headerDict = {}
+
+#     # subject information
+
+#     # patient information
+
+#     # acquisition system information
+#     mrd_headerDict["system"] = header.acquisitionSystemInformation.systemVendor
+#     mrd_headerDict[
+#         "mag_strength"
+#     ] = header.acquisitionSystemInformation.systemFieldStrength_T
+#     mrd_headerDict["ins_name"] = header.acquisitionSystemInformation.institutionName
+
+#     if mrd_headerDict["ins_name"] == None:
+#         mrd_headerDict["ins_name"] = "Cincinnati"
+
+#     # encoding
+#     enc = header.encoding[0]
+#     mrd_headerDict[
+#         "matrixSize"
+#     ] = enc.reconSpace.matrixSize.z  # image should be reconstructed at this
+#     mrd_headerDict["FOV"] = int(enc.reconSpace.fieldOfView_mm.x / 10.0)  # 40
+
+#     try:
+#         mrd_headerDict["dwell_time"] = enc.trajectoryDescription.userParameterDouble[
+#             0
+#         ].value  # 10
+#     except:
+#         mrd_headerDict["dwell_time"] = 20
+
+#     # Reading/converting RF excitation
+#     try:
+#         gasExciFreq = enc.trajectoryDescription.userParameterDouble[2].value  # in Hz
+#         disExciFreq = enc.trajectoryDescription.userParameterDouble[3].value  # in Hz
+#         excitation = disExciFreq - gasExciFreq
+
+#         gyro_ratio = 11.777  # gyromagnetic ratio of 129Xe in MHz/Tesla
+#         mrd_headerDict["RF_excitation"] = round(
+#             excitation / (gyro_ratio * mrd_headerDict["mag_strength"]), 1
+#         )
+#         #logging.info("@@@@@@@@@@@@@@@@@@")
+#         #logging.info(gasExciFreq )
+#     except:
+#         try:
+#             mrd_headerDict["RF_excitation"] = round(
+#                 header.userParameters.userParameterDouble[0].value
+#             )
+#         except:
+#             mrd_headerDict["RF_excitation"] = 0
+
+#     # Institution specific paramters >>>>>
+#     if mrd_headerDict["ins_name"] == "University of Iowa":
+#         mrd_headerDict["TE90"] = np.round(
+#             header.sequenceParameters.TE[0] * 1000 * 1000, 2
+#         )  # 458 here # 500 for Duke
+#         mrd_headerDict["tr_dis"] = np.round(
+#             2 * header.sequenceParameters.TR[0] * 1000
+#         )  # 15; mrd header -> 0.0075
+#         mrd_headerDict["gasFA"] = 0.5  # not sure about this
+#         mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 20
+#         #mrd_headerDict["scan_date"] = header.studyInformation.studyDate
+#         scan_date = header.measurementInformation.frameOfReferenceUID
+#         mrd_headerDict["scan_date"] = (
+#             "Sup" + "-" + "Date" + "-" + "NorealDate"
+#         )  # YYYY-MM-DD
+
+#     elif mrd_headerDict["ins_name"] == "St. Joseph's Healthcare Hamilton":  # Mcmaster
+#         mrd_headerDict[
+#             "TE90"
+#         ] = 450  # np.round(header.sequenceParameters.TE[0] * 1000, 2) # 470.6; 500 for Duke
+#         mrd_headerDict["tr_dis"] = np.round(
+#             2 * header.sequenceParameters.TR[0] * 1000
+#         )  # TR is 4.24
+#         mrd_headerDict["gasFA"] = 0.5  # not sure about this
+#         mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[0]  # 20
+#         mrd_headerDict["scan_date"] = header.studyInformation.studyDate
+
+#     elif (
+#         mrd_headerDict["ins_name"] == "Cincinnati"
+#         or mrd_headerDict["ins_name"] == "CCHMC"
+#     ):
+#         mrd_headerDict["TE90"] = (
+#             header.sequenceParameters.TE[0] * 1000
+#         )  # 470.6 ; 500 for Duke
+#         mrd_headerDict["tr_dis"] = 2 * header.sequenceParameters.TR[0]  # TR is 4.24
+#         mrd_headerDict["gasFA"] = header.sequenceParameters.flipAngle_deg[0]  # 0.5
+#         mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 15
+#         scan_date = header.measurementInformation.frameOfReferenceUID
+#         mrd_headerDict["scan_date"] = (
+#             scan_date[:4] + "-" + scan_date[4:6] + "-" + scan_date[6:]
+#         )  # YYYY-MM-DD
+
+#     else:
+#         scan_date = header.measurementInformation.frameOfReferenceUID
+#         mrd_headerDict["scan_date"] = (
+#             scan_date[:4] + "-" + scan_date[4:6] + "-" + scan_date[6:]
+#         )  # YYYY-MM-DD
+#         mrd_headerDict["gasFA"] = header.sequenceParameters.flipAngle_deg[0]  # 0.5
+#         mrd_headerDict["disFA"] = header.sequenceParameters.flipAngle_deg[1]  # 15
+
+#     # # Siemens software version - not required for other vendors/institution
+#     # try:
+#     #     mrd_headerDict["software_version"] = twix_obj.hdr.Dicom.SoftwareVersions
+#     # except:
+#     #     mrd_headerDict["software_version"] = "NA"
+
+#     return mrd_headerDict
+
+# def get_gx_data(dataset: ismrmrd.hdf5.Dataset) -> Dict[str, Any]:
+#     """Get the FID acquisition data from dixon MRD file.
+#     Args:
+#         dataset: ismrmrd dataset object
+#     Returns:
+#         a dictionary containing
+#             - all raw fids of shape (number of projections for gas and dissolved phase combined,
+#                 number of points in ray)
+#             - gas phase fids in shape (number of projections, number of points in ray)
+#             - dissolved phase fids in shape (number fo projections, number of points in ray)
+#             - k space trajectory of gas and dissolved acquisitions (for standard 1 pt Dixon
+#                 these are the same)
+#     """
+#     # Reading the dataset
+#     dset = dataset
+#     nFids = dset.number_of_acquisitions()
+
+#     # Getting Information from the Header associated with the scan
+#     header = ismrmrd.xsd.CreateFromDocument(dset.read_xml_header())
+#     mrd_headerDict = mrd_headerRead(header)
+# #acquisition_header = dataset.read_acquisition(i).getHead()
+#     # Prepare the K-space and trajectories >>>>>>>>>>>>>>
+#     ## ======================= Reshaping K-space =============================
+#     k_space_reshaped_all = []
+#     nFrames = dset.number_of_acquisitions()
+#     npts_fid = dset.read_acquisition(0).data[0].shape[0]  # 64 for cchmc
+
+#     for i in range(0, nFrames):
+#         k_space_reshaped = dset.read_acquisition(i).data[0].reshape(1, npts_fid)
+#         k_space_reshaped_all.append(k_space_reshaped)
+
+#     data_dixon = np.concatenate(k_space_reshaped_all, axis=0)
+
+#     # Separating Gas and Dissolved Fids
+#     data_gas = data_dixon[0::2, :]
+#     nFrames_gas_all = data_gas.shape[0]
+
+#     data_dis_all = data_dixon[1::2, :]
+#     data_dis = data_dis_all
+#     ## ===================== Reshaping trajectories ===========================
+#     traj_list_all = []
+#     traj_all = np.empty((nFrames, npts_fid, 3))
+
+#     for i in range(0, nFrames):
+#         traj_all[i, :, :] = dset.read_acquisition(i).traj
+
+#     # # Separate Gas and Dissolved Trajectories - here gas and dissolved trajs are same
+#     traj_gas = traj_all[0::2, :].astype(np.float64)
+#     traj_dis = traj_all[1::2, :].astype(np.float64)
+
+#     return {
+#         constants.IOFields.FIDS: data_dixon,
+#         constants.IOFields.FIDS_GAS: data_gas,
+#         constants.IOFields.FIDS_DIS: data_dis,
+#         constants.IOFields.TRAJ: [traj_gas,traj_dis],
+#         "matrix_size": mrd_headerDict["matrixSize"]
+#     }
 
 def get_ute_data(dataset: ismrmrd.hdf5.Dataset) -> Dict[str, Any]:
     """Get the FID acquisition data from proton MRD file.

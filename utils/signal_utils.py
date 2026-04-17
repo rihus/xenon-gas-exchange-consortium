@@ -11,6 +11,101 @@ from utils import constants
 sys.path.append("..")
 
 
+def matlab_movmean(x, k, axis=-1, nanflag="includenan"):
+    """
+    MATLAB-compatible movmean:
+      - scalar k: odd -> centered, even -> centered on current+previous
+      - endpoints: shrink/truncate window (default MATLAB behavior)
+      - nanflag: 'includenan' (default MATLAB) or 'omitnan'
+    """
+    x = np.asarray(x)
+
+    # MATLAB returns double for integer/logical inputs
+    if x.dtype.kind in "biu":
+        x = x.astype(np.float64)
+
+    # Interpret window
+    if np.isscalar(k):
+        k = int(k)
+        if k <= 0:
+            raise ValueError("k must be positive")
+
+        if k % 2:                 # odd
+            kb = kf = k // 2
+        else:                     # even: centered on current and previous
+            kb = k // 2
+            kf = k // 2 - 1
+    else:
+        kb, kf = map(int, k)      # k = [kb, kf] in MATLAB
+        if kb < 0 or kf < 0:
+            raise ValueError("kb and kf must be non-negative")
+
+    # Move target axis to the end
+    xm = np.moveaxis(x, axis, -1)
+    N = xm.shape[-1]
+
+    idx   = np.arange(N)
+    start = np.clip(idx - kb, 0, N)
+    end   = np.clip(idx + kf + 1, 0, N)
+    win_len = (end - start).astype(np.float64)
+
+    # NaN mask (for float/complex only)
+    if xm.dtype.kind in "fc":
+        isn = np.isnan(xm)
+    else:
+        isn = np.zeros_like(xm, dtype=bool)
+
+    # Replace NaNs with 0 for stable cumsum
+    x0 = np.where(isn, 0, xm)
+
+    # Range sums via cumsum with leading 0
+    zero = np.zeros_like(x0[..., :1])
+    cs = np.concatenate([zero, np.cumsum(x0, axis=-1)], axis=-1)
+    sums = cs[..., end] - cs[..., start]
+
+    # Valid counts (for NaN logic)
+    valid = (~isn).astype(np.int64)
+    zc = np.zeros_like(valid[..., :1])
+    cc = np.concatenate([zc, np.cumsum(valid, axis=-1)], axis=-1)
+    vcount = cc[..., end] - cc[..., start]
+
+    # Broadcast window length to match output shape
+    win_len_b = win_len.reshape((1,) * (sums.ndim - 1) + (N,))
+
+    nan_like = np.array(np.nan, dtype=sums.dtype)
+
+    if nanflag == "includenan":
+        out = sums / win_len_b
+        # if any NaN in the window -> output NaN (MATLAB default)
+        nancount = win_len_b - vcount
+        out = np.where(nancount > 0, nan_like, out)
+
+    elif nanflag == "omitnan":
+        # ignore NaNs: divide by number of valid samples
+        out = sums / np.maximum(vcount, 1)
+        out = np.where(vcount == 0, nan_like, out)
+
+    else:
+        raise ValueError("nanflag must be 'includenan' or 'omitnan'")
+
+    # Move axis back
+    return np.moveaxis(out, -1, axis)
+
+
+
+def matlab_downsample(x, factor, phase=0, axis=1):
+    """
+    MATLAB downsample behavior (sample picking, no anti-aliasing):
+    keep sample at `phase` then every n-th sample along `axis`.
+    """
+    if not 0 <= phase < int(factor):
+        raise ValueError("phase must be in [0, n-1]")
+    x = np.asarray(x)
+    slicer = [slice(None)] * x.ndim
+    slicer[axis] = slice(phase, None, int(factor))
+    return x[tuple(slicer)]
+
+
 def _movmean(x: np.ndarray, n: int) -> np.ndarray:
     """Compute moving mean of x over n points.
 
@@ -356,41 +451,6 @@ def fit_sine_matlab(y: np.ndarray, x: np.ndarray) -> Tuple[np.ndarray, np.ndarra
     return func(x, *fit_params), fit_params
 
 
-# def fit_sine(data: np.ndarray) -> np.ndarray:
-#     """Fit the data to a sum of 8 sine waves.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be fitted.
-#     Returns:
-#         Fitted data. Same shape as input data.
-#     """
-#     x = np.arange(data.shape[0])
-#     y = data
-
-#     def func(x, *args):
-#         return (
-#             args[0] * np.sin(args[1] * x + args[2])
-#             + args[3] * np.sin(args[4] * x + args[5])
-#             + args[6] * np.sin(args[7] * x + args[8])
-#             + args[9] * np.sin(args[10] * x + args[11])
-#             + args[12] * np.sin(args[13] * x + args[14])
-#             + args[15] * np.sin(args[16] * x + args[17])
-#             + args[18] * np.sin(args[19] * x + args[20])
-#             + args[21] * np.sin(args[22] * x + args[23])
-#         )
-
-#     p0 = _sinnstart(x, y, 8)
-#     bounds = _sinbounds(8)
-#     popt, _ = optimize.curve_fit(
-#         func,
-#         x,
-#         y,
-#         p0=p0,
-#         bounds=bounds,
-#     )
-#     return func(x, *popt)
-
-
 def detrend(data: np.ndarray) -> np.ndarray:
     """Remove bi-exponential trend along axis from data.
 
@@ -658,120 +718,6 @@ def get_rbc_norm_matlab(y: np.ndarray, t: np.ndarray, t_eval: np.ndarray) -> np.
     return exp1(t_eval, *fit_params)
 
 
-# def fit_sine(y: np.ndarray, x: np.ndarray, n: int = 1) -> Tuple[np.ndarray, np.ndarray]:
-#     """Fit the data to a sum of n sine waves.
-
-#     Args:
-#         y (np.ndarray): Data to fit. Shape (n,).
-#         x (np.ndarray): x data. Shape (n,).
-#         n (int): Number of sine waves to fit to. Defaults to 1.
-#     Returns:
-#         Tuple of the fitted data of same shape as input data and the fit parameters.
-#     """
-
-#     def func(x, *args):
-#         return args[0] * np.sin(args[1] * x + args[2])
-
-#     p0 = _sinnstart(x, y, n)
-#     bounds = _sinbounds(n)
-#     popt, _ = optimize.curve_fit(
-#         func,
-#         x,
-#         y,
-#         p0=p0,
-#         bounds=bounds,
-#     )
-#     print("Optimal Parameters:", popt)
-#     return func(x, *popt), popt
-
-# def detrend(data: np.ndarray) -> np.ndarray:
-#     """Remove bi-exponential trend along axis from data.
-
-#     Fits the data to a bi-exponential decay function and removes the trend.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be detrended.
-#     Returns:
-#         Detrended data. Same shape as input data.
-#     """
-#     x = np.arange(data.shape[0])
-#     y = data
-
-#     def func(x, a, b, c, d):
-#         return a * np.exp(-b * x)  # + c * np.exp(-d * x)
-
-#     popt, _ = optimize.curve_fit(
-#         func,
-#         x,
-#         y,
-#         p0=[1, 0.1, 1, 0.1],
-#         method="trf",
-#         ftol=1e-6,
-#         xtol=1e-6,
-#         max_nfev=600,
-#     )
-#     return (data - func(x, *popt)) / func(x, *popt)
-
-
-# def find_peaks(data: np.ndarray, distance: int = 5) -> np.ndarray:
-#     """Find peaks in data.
-
-#     Implements a peak finding function using scipy.signal.find_peaks.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be filtered.
-#         distance (int): minimum distance between peaks. Defaults to 5. Units are
-#         number of points.
-
-#     Returns:
-#         Array of indices of peaks.
-#     """
-#     peaks, _ = signal.find_peaks(data, distance=distance)
-#     return peaks[np.argwhere(data[peaks] > 0).flatten()]
-
-
-# def get_heartrate(data: np.ndarray, ts: float) -> float:
-#     """Calculate heart rate from data.
-
-#     Implements a heart rate calculation function by finding the strongest peak
-#     in the fourier domain of the data.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be filtered.
-#         ts (float): sampling period in seconds.
-
-#     Returns:
-#         Heart rate in beats per minute.
-#     """
-#     fft_data = np.abs(np.fft.fftshift(np.fft.fft(data)))
-#     freq = np.fft.fftshift(np.fft.fftfreq(len(data), ts))
-#     # Exclude the DC frequency by considering only non-DC frequencies
-#     non_dc_indices = np.nonzero(freq)
-#     fft_data_non_dc = fft_data[non_dc_indices]
-#     freq_non_dc = freq[non_dc_indices]
-
-#     return np.abs(freq_non_dc[np.argmax(fft_data_non_dc)] * 60)
-
-
-# def awgn(sig: np.ndarray, SNR: float) -> np.ndarray:
-#     """Add white gaussian noise.
-
-#     Args:
-#         sig (np.ndarray): signal to be added with noise.
-#         SNR (float): signal to noise ratio in dB.
-#     """
-#     sig_power = np.sum(np.abs(sig) ** 2) / len(sig)
-#     noise_power = sig_power / (10 ** (SNR / 10))
-
-#     if np.isreal(sig):
-#         noise = np.sqrt(noise_power) * np.random.randn(len(sig))
-#     else:
-#         noise = np.sqrt(noise_power / 2) * (
-#             np.random.randn(len(sig)) + 1j * np.random.randn(len(sig))
-#         )
-#     return sig + noise
-
-
 def find_high_low_indices(
     data: np.ndarray,
     peak_distance: int,
@@ -991,168 +937,6 @@ def get_vol_correction(vol: float, expected_lung_volume: float) -> Tuple[float, 
     return vol_correction_factor_rbc, vol_correction_factor_membrane, vol2
 
 
-# def boxcox(data: np.ndarray) -> tuple[np.ndarray, float]:
-#     """Apply box cox transformation on data.
-
-#     Args:
-#         data (np.ndarray): data to be transformed of shape (n,)
-#     Returns:
-#         Tuple of transformed data and box cox lambda
-#     """
-#     return stats.boxcox(data)
-
-
-# def inverse_boxcox(
-#     boxcox_lambda: float, data: np.ndarray, scale_factor: float
-# ) -> np.ndarray:
-#     """Apply inverse box cox transformation on data.
-
-#     Args:
-#         boxcox_lambda (float): box cox lambda
-#         data (np.ndarray): data to be transformed of shape (n,)
-#         scale_factor (float): scale factor to be applied to the data
-#     """
-#     return np.power(boxcox_lambda * data + 1, 1 / boxcox_lambda) - scale_factor
-
-
-# def remove_gasphase_contamination(
-#     data_dissolved: np.ndarray,
-#     data_gas: np.ndarray,
-#     dwell_time: float,
-#     freq_gas_acq_diss: float,
-#     phase_gas_acq_diss: float,
-#     area_gas_acq_diss: float,
-#     fa_gas: float,
-# ) -> np.ndarray:
-#     """Remove gas phase contamination in dissolved k-space.
-
-#     Takes gas phase k-space and modifies it using NMR fits and gas phase k0
-#     to produce the expected gas phase contamination k-space data which is
-#     then removed from the initial contaminated dissolved phase k-space.
-
-#     Args:
-#         data_dissolved (np.ndarray): dissolved k-space data of shape
-#             (n_projections, n_points)
-#         data_gas (np.ndarray): gas phase k-space data of shape
-#             (n_projections, n_points)
-#         dwell_time (float): dwell time in seconds.
-#         freq_gas_acq_diss (float): gas frequency offset in dissolved
-#             spectra acquisition in Hz.
-#         phase_gas_acq_diss (float): gas phase in dissolved spectra acquisition.
-#             in degrees.
-#         area_gas_acq_diss (float): gas area in dissolved spectra acquisition.
-#         fa_gas (float): gas flip angle in degrees.
-#     Returns:
-#         Gas phase corrected dissolved k-space data of shape (n_projections, n_points)
-#     Author: Matt Willmering
-#     Paper: https://pubmed.ncbi.nlm.nih.gov/33665905/
-#     """
-#     # step 0: calculate parameters
-#     arr_t = dwell_time * np.arange(data_dissolved.shape[1])
-#     # step 1: modulate contamination (gas) to dissolved frequency - first order
-#     # phase approximation
-#     phase_shift1 = 2 * np.pi * freq_gas_acq_diss * arr_t  # calculate phase accumulation
-#     contamination_kspace1 = data_gas * np.exp(1j * phase_shift1)
-#     # step 2: zero order phase shift of contamination estimation
-#     phase_shift2 = phase_gas_acq_diss - 180 / np.pi * np.mean(np.angle(data_gas[:, 0]))
-#     contamination_kspace2 = contamination_kspace1 * np.exp(
-#         1j * np.pi / 180 * phase_shift2
-#     )
-#     # step 3: scale contamination estimation
-#     scale_factor = area_gas_acq_diss / _movmean(np.abs(data_gas[:, 0]), 100)[-1]
-#     contamination_kspace3 = (
-#         contamination_kspace2 * scale_factor / np.cos(np.pi / 180 * fa_gas)
-#     )
-#     # step 4: return subtracted contamination
-#     return data_dissolved - contamination_kspace3
-
-
-# def dixon_decomposition(
-#     data_dissolved: np.ndarray,
-#     rbc_m_ratio: float,
-# ) -> Tuple[np.ndarray, np.ndarray]:
-#     """Apply 1-point dixon decomposition on FID data.
-
-#     Applies phase shift to the dissolved data such that the RBC and membrane are
-#     separated into the imaginary and real channel respectively.
-#     Does NOT also apply B0 inhomogeneity correction.
-
-#     Args:
-#         data_dissolved (np.ndarray): dissolved FID data of shape
-#             (n_projections, n_points)
-#         rbc_m_ratio (float): RBC:m ratio
-#     Returns:
-#         Tuple of decomposed RBC and membrane data respectively
-#     """
-#     desired_angle = np.arctan2(rbc_m_ratio, 1.0)
-#     # use k0 to determine the phase shift
-#     total_dissolved = np.sum(data_dissolved[:, 0])
-#     current_angle = np.arctan2(np.imag(total_dissolved), np.real(total_dissolved))
-#     delta_angle = desired_angle - current_angle
-
-#     rotated_data = np.multiply(data_dissolved, np.exp(1j * delta_angle))
-#     return np.imag(rotated_data), np.real(rotated_data)
-
-
-# def smooth(data: np.ndarray, window_size: int = 5) -> np.ndarray:
-#     """Smooth response data.
-
-#     Implements a smoothing function that is equivalent to the MATLAB smooth function.
-#     Source: https://www.mathworks.com/help/curvefit/smooth.html
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be smoothed.
-#         window_size (int): size of the smoothing window. Defaults to 5.
-#     Returns:
-#         Smoothed data.
-#     """
-#     out0 = np.convolve(data, np.ones(window_size, dtype=int), "valid") / window_size
-#     r = np.arange(1, window_size - 1, 2)
-#     start = np.cumsum(data[: window_size - 1])[::2] / r
-#     stop = (np.cumsum(data[:-window_size:-1])[::2] / r)[::-1]
-#     return np.concatenate((start, out0, stop))
-
-
-# def bandpass(data: np.ndarray, lowcut: float, highcut: float, fs: float) -> np.ndarray:
-#     """Bandpass filter.
-
-#     Implements a bandpass filter using a butterworth filter.
-#     Equivalent to MATLAB bandpass filter.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be filtered.
-#         lowcut (float): lowcut frequency in Hz.
-#         highcut (float): highcut frequency in Hz.
-#         fs (float): sampling frequency.
-#     Returns:
-#         Filtered data.
-#     """
-#     nyq = 0.5 * fs
-#     low = lowcut / nyq
-#     high = highcut / nyq
-#     sos = signal.butter(6, [low, high], analog=False, btype="bandpass", output="sos")
-#     return np.array(signal.sosfiltfilt(sos, data))
-
-
-# def lowpass(data: np.ndarray, highcut: float, fs: float) -> np.ndarray:
-#     """Bandpass filter.
-
-#     Implements a bandpass filter using a butterworth filter.
-#     Equivalent to MATLAB bandpass filter.
-
-#     Args:
-#         data (np.ndarray): 1-D array data to be filtered.
-#         highcut (float): highcut frequency in Hz.
-#         fs (float): sampling frequency.
-#     Returns:
-#         Filtered data.
-#     """
-#     nyq = 0.5 * fs
-#     high = highcut / nyq
-#     sos = signal.butter(6, high, btype="lowpass", output="sos")
-#     return np.array(signal.sosfiltfilt(sos, data))
-
-
 def find_npeaks(data: np.ndarray, npeaks: Optional[int] = None) -> np.ndarray:
     """Find peaks in data.
 
@@ -1169,65 +953,6 @@ def find_npeaks(data: np.ndarray, npeaks: Optional[int] = None) -> np.ndarray:
     if npeaks is not None:
         peaks = peaks[np.argsort(data[peaks])][::-1][: min(npeaks, len(peaks))]
     return peaks
-
-
-# def get_hb_correction(hb: float) -> Tuple[float, float]:
-#     """Get scaling factors for hb correction.
-
-#     Args:
-#         hb (float): subject hb in g/dL
-
-#     Returns:
-#         rbc_hb_correction_factor (float): rbc hb correction factor
-#         membrane_hb_correction_factor (float): membrane hb correction factor
-
-#     Reference: https://onlinelibrary.wiley.com/doi/10.1002/mrm.29712
-#     """
-
-#     rbc_hb_correction_factor = constants.HbCorrection.R1 + (
-#         constants.HbCorrection.HB_REF * (1 - constants.HbCorrection.R1) / hb
-#     )
-#     membrane_hb_correction_factor = (1 + constants.HbCorrection.M1 * hb) / (
-#         1
-#         + constants.HbCorrection.M1 * constants.HbCorrection.HB_REF
-#         - constants.HbCorrection.M2 * (constants.HbCorrection.HB_REF - hb)
-#     )
-
-#     return rbc_hb_correction_factor, membrane_hb_correction_factor
-
-
-# def calculate_t2star_correction(te90: float) -> float:
-#     """Calculate T2* correction factor.
-
-#     Rounds to 3 decimal places.
-#     Args:
-#         te90 (float): echo time in seconds
-#     """
-#     return np.round(np.exp(te90 / 2e-3) / np.exp(te90 / 5e-2), 3)
-
-
-# def calculate_flipangle_correction(fa_gas: float, fa_dis: float) -> float:
-#     """Calculate flip angle correction factor.
-
-#     Rounds to 3 decimal places.
-#     Args:
-#         fa_gas (float): gas flip angle in degrees
-#         fa_dis (float): dissolved flip angle in degrees
-#     """
-#     return np.round(
-#         (100 * np.sin(fa_gas * np.pi / 180) / np.sin(fa_dis * np.pi / 180)), 3
-#     )
-
-
-# def calculate_flipangle_factor(fa_gas: float, fa_dis: float) -> float:
-#     """Calculate ratio between dissolved and gas flip angles.
-
-#     Rounds to 2 decimal places.
-#     Args:
-#         fa_gas (float): gas flip angle in degrees
-#         fa_dis (float): dissolved flip angle in degrees
-#     """
-#     return np.round((np.sin(fa_dis * np.pi / 180) / np.sin(fa_gas * np.pi / 180)), 2)
 
 
 def calculate_decay_factor(data: np.ndarray, t2star, dwell_time: float) -> np.ndarray:

@@ -184,13 +184,13 @@ def get_ute_mrd_files(path: str) -> str:
         str file path of MRD file
     """
     try:
+        files = glob.glob(os.path.join(path,"**", "*[Pp]roton*.h5"), recursive=True)
+        if files:
+            return files[0]
         files = glob.glob(os.path.join(path, "**/*ute*.h5"), recursive=True)
         if files:
             return files[0]
-        files = glob.glob(os.path.join(path, "**/*Mask*.h5"), recursive=True)
-        if files:
-            return files[0]
-        files = glob.glob(os.path.join(path, "**/*mask*.h5"), recursive=True)
+        files = glob.glob(os.path.join(path,"**", "*[Mm]ask*.h5"), recursive=True)
         if files:
             return files[0]
     except IndexError as errr:
@@ -414,12 +414,12 @@ def read_dyn_mrd(path: str) -> dict[str, Any]:
     }
 
 
-def read_dis_mrd(path: str) -> dict[str, Any]: #, multi_echo: bool
+def read_dis_mrd(path: str, multi_echo: bool) -> dict[str, Any]: #
     """Read 1-point dixon disssolved phase imaging mrd file.
 
     Args:
         path: str file path of mrd file
-        multi_echo: option to perform multi echo ##TODO add this functionality
+        multi_echo: option to perform multi echo
     Returns: dictionary containing data and metadata extracted from the mrd file.
     This includes:
         - dwell time in seconds.
@@ -448,7 +448,7 @@ def read_dis_mrd(path: str) -> dict[str, Any]: #, multi_echo: bool
     except Exception as excep:
         raise ValueError("Invalid mrd file.") from excep
 
-    data_dict = mrd_utils.get_gx_data(dataset) #, multi_echo
+    data_dict = mrd_utils.get_gx_data(dataset, multi_echo) #
 
     return {
         constants.IOFields.SUBJECT_AGE: np.nan,
@@ -466,9 +466,6 @@ def read_dis_mrd(path: str) -> dict[str, Any]: #, multi_echo: bool
         constants.IOFields.XE_CENTER_FREQUENCY: mrd_utils.get_center_freq(header),
         constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY: mrd_utils.get_excitation_freq(
             header),
-        # constants.IOFields.GRAD_DELAY_X: data_dict[constants.IOFields.GRAD_DELAY_X],
-        # constants.IOFields.GRAD_DELAY_Y: data_dict[constants.IOFields.GRAD_DELAY_Y],
-        # constants.IOFields.GRAD_DELAY_Z: data_dict[constants.IOFields.GRAD_DELAY_Z],
         constants.IOFields.GRAD_DELAY_X: np.nan, #RH: updated from new code
         constants.IOFields.GRAD_DELAY_Y: np.nan,
         constants.IOFields.GRAD_DELAY_Z: np.nan,
@@ -477,19 +474,15 @@ def read_dis_mrd(path: str) -> dict[str, Any]: #, multi_echo: bool
         constants.IOFields.ORIENTATION: mrd_utils.get_orientation(header),
         constants.IOFields.PROTOCOL_NAME: mrd_utils.get_protocol_name(header),
         constants.IOFields.RAMP_TIME: mrd_utils.get_ramp_time(header),
-        # constants.IOFields.RAMP_TIME: 0, #RH: updated from new code
-        # constants.IOFields.N_FRAMES: data_dict[constants.IOFields.N_FRAMES],
-        # constants.IOFields.N_SKIP_END: data_dict[constants.IOFields.N_SKIP_END],
-        # constants.IOFields.N_SKIP_START: data_dict[constants.IOFields.N_SKIP_START],
         constants.IOFields.REMOVEOS: False,
         constants.IOFields.SCAN_DATE: mrd_utils.get_scan_date(header),
         constants.IOFields.SOFTWARE_VERSION: "NA",
-        constants.IOFields.TE90: mrd_utils.get_TE90(header)/1000.0,
+        constants.IOFields.TE90: mrd_utils.get_TE90(header)/1000.0, #
         constants.IOFields.TR: mrd_utils.get_TR(header=header),
         constants.IOFields.TR_DIS: mrd_utils.get_TR_dissolved(header),
         constants.IOFields.TRAJ: data_dict[constants.IOFields.TRAJ],
         constants.IOFields.PREP_PULSES: mrd_utils.get_prep_pulses(header),
-        "matrix_size": data_dict["matrix_size"]
+        # "matrix_size": data_dict["matrix_size"]
     }
 
 def read_ute_mrd(path: str) -> Dict[str, Any]:

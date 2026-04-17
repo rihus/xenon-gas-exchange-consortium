@@ -171,9 +171,9 @@ class Subject(object):
         Read in the dynamic spectroscopy (if it exists) and the dissolved-phase image
         data.
         """
-        self.dict_dis = io_utils.read_dis_mrd(
-            io_utils.get_dis_mrd_files(str(self.config.data_dir))
-            )# , self.config.multi_echo
+        self.dict_dis = io_utils.read_dis_mrd(io_utils.get_dis_mrd_files(str(self.config.data_dir)),
+                                              self.config.multi_echo
+            )#
         logging.info("TR read from MRD: %s", self.dict_dis[constants.IOFields.TR])
         try:
             self.dict_dyn = io_utils.read_dyn_mrd(
@@ -580,7 +580,7 @@ class Subject(object):
             rbc_m_ratio=self.rbc_m_ratio,
         )
         # calculate the key radius (14% of the total points per projection)
-        self.key_radius = np.ceil(self.data_dissolved.shape[1]*14/100)
+        self.key_radius = int(np.ceil(self.data_dissolved.shape[1]*14/100))
         if self.config.recon.recon_key == constants.ReconKey.ROBERTSON.value:
             # #prepare trajectories and reconstruct high-key data
             data_dis_high, traj_dis_high = pp.prepare_data_and_traj_keyhole(

@@ -37,7 +37,7 @@ class Config(config_dict.ConfigDict):
         super().__init__()
         self.data_dir = ""
         self.subject_id = "test"
-        self.data_file_name = "menstrualcycle_gx_osc_stats_kernel3" #gx_osc_stats_all
+        self.data_file_name = "gx_osc_stats_kernel3"
         self.rbc_m_ratio = 0.0
         self.patient_frc = "None"
         self.bag_volume = "None"
