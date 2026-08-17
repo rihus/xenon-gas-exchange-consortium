@@ -152,7 +152,7 @@ conda activate <name-of-conda-environment>
 
 #### 3.1.1 Accepted file inputs
 
-The pipeline accepts Siemens twix (.dat) or ISMRMRD (.h5) files for standard proton UTE, 1-point Dixon, and (optionally) calibration scans. Alternatively, if a subject scan has already been processed through the pipeline and you wish to reprocess the previously constructed images, you can run the pipeline on the subject's .mat file. ISMRMRD files must be named and formatted according to the <sup>129</sup>Xe MRI clinical trials consortium specifications: [https://github.com/Xe-MRI-CTC/xemrd-specification](https://github.com/Xe-MRI-CTC/xemrd-specification)
+The pipeline accepts Siemens twix (.dat) or ISMRMRD (.h5) files for standard proton UTE, 1-point Dixon, and (optionally) calibration scans. ISMRMRD files must be named and formatted according to the <sup>129</sup>Xe MRI clinical trials consortium specifications: [https://github.com/Xe-MRI-CTC/xemrd-specification](https://github.com/Xe-MRI-CTC/xemrd-specification)
 
 More information on consortium protocol for the proton UTE, 1-point Dixon, and calibration scans can be found in the following reference:
 
@@ -160,17 +160,7 @@ More information on consortium protocol for the proton UTE, 1-point Dixon, and c
 
 #### 3.1.2 Config file
 
-All subject information and processing parameters are specified in a subject-specific configuration file. Default configuration settings are defined in `config/base_config.py`. The defaults are inhereted by subject-specific config files, unless overriden.
-<br />
-<br />`config/demo_config_basic.py` shows examples of basic config settings that you will usually want to change for each subject scan.
-
-- `data_dir`: Directory containing Dixon, proton, and (optionally) calibration scan files or .mat file. This is where output files will be saved.
-- `subject_id`: Subject ID number that will be used to label output files
-- `rbc_m_ratio`: RBC to membrane signal ratio for Dixon decomposition. If not set in config file, a calibartion scan file is required from which the ratio will be calculated.
-- `segmentation_key`: Defines what kind of segmentation to use. Typically set to CNN_VENT for automatic segmentation of the gas image or MANUAL_VENT for manual segmentation of the gas image.
-- `manual_seg_filepath`: Path of manual segmentation file, if MANUAL_VENT is chosen.
-
-`config/demo_config_advanced.py` shows examples of advanced config settings that may commonly be modified for more specific cases. See `config/base_config.py` for all config settings that can be modified.
+All subject information and processing parameters are specified in a subject-specific configuration file. Default configuration settings are defined in `config/base_config.py`, which can be duplicated and modified to be a subject-specific config file. The standard config parameters in the file must be filled per subject. Any absent variables in the subject-specific config file are inherited from `base_config.py`
 
 #### 3.1.3 Processing a subject
 
@@ -186,14 +176,6 @@ Run the full pipeline with:
 
 ```bash
 python main.py --config <path-to-config-file>
-```
-
-#### Running previously processed subject scan from .mat file
-
-If a subject scan has already been processed through the pipeline and you wish to reprocess the previously constructed images, you can run the pipeline on the subject's .mat file with:
-
-```bash
-python main.py --config <path-to-config-file> --force_readin
 ```
 
 ### 3.2. Team Xenon Worflow for Duke Data Processing

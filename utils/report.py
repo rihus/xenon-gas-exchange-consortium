@@ -1,7 +1,9 @@
 """Make reports."""
+
 import os
 import sys
 from typing import Any, Dict
+import numbers
 
 import numpy as np
 from weasyprint import HTML
@@ -17,7 +19,7 @@ def get_git_branch() -> str:
     """Get the current git branch.
 
     Returns:
-        str: current git branch and short commit hash, 
+        str: current git branch and short commit hash,
              if not in git repo, return "unknown"
     """
     try:
@@ -55,6 +57,21 @@ def format_dict(dict_stats: Dict[str, Any]) -> Dict[str, Any]:
         constants.StatsIOFields.MEMBRANE_SNR,
         constants.StatsIOFields.RBC_SNR,
         constants.StatsIOFields.VENT_SNR,
+        constants.StatsIOFields.OSC_DEFECT_PCT,
+        constants.StatsIOFields.OSC_LOW_PCT,
+        constants.StatsIOFields.OSC_DEFECTLOW_PCT,
+        constants.StatsIOFields.OSC_HIGH_PCT,
+        constants.StatsIOFields.OSC_MEAN,
+        constants.StatsIOFields.OSC_NEGATIVE_PCT,
+        constants.StatsIOFields.RBC_HIGH_SNR,
+        constants.StatsIOFields.RBC_LOW_SNR,
+        constants.StatsIOFields.DISSOLVED_SNR,
+        constants.StatsIOFields.OSC_DEFECT_PCT_CORR,
+        constants.StatsIOFields.OSC_LOW_PCT_CORR,
+        constants.StatsIOFields.OSC_DEFECTLOW_PCT_CORR,
+        constants.StatsIOFields.OSC_HIGH_PCT_CORR,
+        constants.StatsIOFields.OSC_MEAN_CORR,
+        constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR,
     ]
     # list of variables to round to 3 decimal places
     list_round_3 = [constants.StatsIOFields.RBC_M_RATIO]
@@ -115,12 +132,9 @@ def clinical(dict_stats: Dict[str, Any], path: str):
     with open(path_html, "r", encoding="utf-8") as f:
         html_content = f.read()
     # Render PDF from HTML string, ensuring correct base for relative URLs
-    HTML(
-        string=html_content,
-        base_url=str(project_root)
-    ).write_pdf(
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
         target=path,
-        dpi=96,
+        dpi=300,
     )
 
 
@@ -152,12 +166,43 @@ def grayscale(dict_stats: Dict[str, Any], path: str):
     with open(path_html, "r", encoding="utf-8") as f:
         html_content = f.read()
     # Render PDF from HTML string, ensuring correct base for relative URLs
-    HTML(
-        string=html_content,
-        base_url=str(project_root)
-    ).write_pdf(
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
         target=path,
-        dpi=96,
+        dpi=300,
+    )
+
+
+def grayscale_cor(dict_stats: Dict[str, Any], path: str):
+    """Make clinical report with corrected grayscale images.
+
+    First converts dictionary to html format. Then saves to path.
+    Args:
+        dict_stats (Dict[str, Any]): dictionary of statistics
+        path (str): path to save report
+    """
+    dict_stats = format_dict(dict_stats)
+    current_path = os.path.dirname(__file__)
+    path_clinical = os.path.abspath(
+        os.path.join(current_path, os.pardir, "assets", "html", "grayscale_cor.html")
+    )
+    path_html = os.path.join("tmp", "grayscale_cor.html")
+    # write report to html
+    with open(path_clinical, "r") as f:
+        file = f.read()
+        rendered = file.format(**dict_stats)
+        rendered = rendered.replace("../assets/", "assets/").replace("../tmp/", "tmp/")
+    with open(path_html, "w") as o:
+        o.write(rendered)
+    # write html report to pdf
+    # Define project root explicitly
+    project_root = Path(__file__).resolve().parents[1]
+    # Read the rendered HTML as text
+    with open(path_html, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    # Render PDF from HTML string, ensuring correct base for relative URLs
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
+        target=path,
+        dpi=300,
     )
 
 
@@ -189,12 +234,9 @@ def intro(dict_info: Dict[str, Any], path: str):
     with open(path_html, "r", encoding="utf-8") as f:
         html_content = f.read()
     # Render PDF from HTML string, ensuring correct base for relative URLs
-    HTML(
-        string=html_content,
-        base_url=str(project_root)
-    ).write_pdf(
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
         target=path,
-        dpi=96,
+        dpi=300,
     )
 
 
@@ -219,19 +261,88 @@ def qa(dict_stats: Dict[str, Any], path: str):
         rendered = rendered.replace("../assets/", "assets/").replace("../tmp/", "tmp/")
     with open(path_html, "w") as o:
         o.write(rendered)
-    # write html report to pdf 
+    # write html report to pdf
     # Define project root explicitly
     project_root = Path(__file__).resolve().parents[1]
     # Read the rendered HTML as text
     with open(path_html, "r", encoding="utf-8") as f:
         html_content = f.read()
     # Render PDF from HTML string, ensuring correct base for relative URLs
-    HTML(
-        string=html_content,
-        base_url=str(project_root)
-    ).write_pdf(
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
         target=path,
-        dpi=96,
+        dpi=300,
+    )
+
+
+def clinical_osc_imaging(dict_stats: dict[str, Any], path: str):
+    """Make clinical report.
+
+    First converts dictionary to html format. Then saves to path.
+    Args:
+        stats_dict (Dict[str, Any]): dictionary of statistics
+        path (str): path to save report
+    """
+    stats_dict = format_dict(dict_stats)
+    current_path = os.path.dirname(__file__)
+    path_clinical = os.path.abspath(
+        os.path.join(
+            current_path, os.pardir, "assets", "html", "clinical_osc_imaging.html"
+        )
+    )
+    path_html = os.path.join("tmp", "clinical_osc_imaging.html")
+    # write report to html
+    with open(path_clinical, "r") as f:
+        file = f.read()
+        rendered = file.format(**stats_dict)
+        rendered = rendered.replace("../assets/", "assets/").replace("../tmp/", "tmp/")
+    with open(path_html, "w") as o:
+        o.write(rendered)
+    # write clinical report to pdf
+    # Define project root explicitly
+    project_root = Path(__file__).resolve().parents[1]
+    # Read the rendered HTML as text
+    with open(path_html, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    # Render PDF from HTML string, ensuring correct base for relative URLs
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
+        target=path,
+        dpi=300,
+    )
+
+
+def clinical_osc_imaging_correction(dict_stats: dict[str, Any], path: str):
+    """Make clinical report.
+
+    First converts dictionary to html format. Then saves to path.
+    Args:
+        stats_dict (Dict[str, Any]): dictionary of statistics
+        path (str): path to save report
+    """
+    stats_dict = format_dict(dict_stats)
+    current_path = os.path.dirname(__file__)
+    path_clinical = os.path.abspath(
+        os.path.join(
+            current_path, os.pardir, "assets", "html", "clinical_osc_imaging_corr.html"
+        )
+    )
+    path_html = os.path.join("tmp", "clinical_osc_imaging_corr.html")
+    # write report to html
+    with open(path_clinical, "r") as f:
+        file = f.read()
+        rendered = file.format(**stats_dict)
+        rendered = rendered.replace("../assets/", "assets/").replace("../tmp/", "tmp/")
+    with open(path_html, "w") as o:
+        o.write(rendered)
+    # write clinical report to pdf
+    # Define project root explicitly
+    project_root = Path(__file__).resolve().parents[1]
+    # Read the rendered HTML as text
+    with open(path_html, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    # Render PDF from HTML string, ensuring correct base for relative URLs
+    HTML(string=html_content, base_url=str(project_root)).write_pdf(
+        target=path,
+        dpi=300,
     )
 
 

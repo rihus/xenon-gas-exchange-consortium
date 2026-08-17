@@ -12,24 +12,22 @@ import logging
 from utils import constants, recon_utils, signal_utils, spect_utils, traj_utils
 
 
-def remove_contamination(dict_dyn: Dict[str, Any], dict_dis: Dict[str, Any]) -> Dict:
+def gas_contamination_correction(
+    dict_dis: Dict[str, Any], config: Optional[ml_collections.ConfigDict] = None
+) -> Dict:
     """Remove gas contamination from data."""
-    _, fit_obj = spect_utils.calculate_static_spectroscopy(
-        fid=dict_dyn[constants.IOFields.FIDS_DIS],
-        sample_time=dict_dyn[constants.IOFields.SAMPLE_TIME],
-        tr=dict_dyn[constants.IOFields.TR],
-        center_freq=dict_dyn[constants.IOFields.XE_CENTER_FREQUENCY],
-        rf_excitation=dict_dyn[constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY],
-    )
 
     dict_dis[constants.IOFields.FIDS_DIS] = signal_utils.remove_gasphase_contamination(
         data_dissolved=dict_dis[constants.IOFields.FIDS_DIS],
-        data_gas=dict_dis[constants.IOFields.FIDS_DIS],
-        sample_time=dict_dyn[constants.IOFields.SAMPLE_TIME],
-        freq_gas_acq_diss=fit_obj.freq[2],
-        phase_gas_acq_diss=fit_obj.phase[2],
-        area_gas_acq_diss=fit_obj.area[2],
-        fa_gas=0.5,
+        data_gas=dict_dis[constants.IOFields.FIDS_GAS],
+        sample_time=dict_dis[constants.IOFields.SAMPLE_TIME],
+        freq_gas_acq_diss=dict_dis[constants.IOFields.XE_CENTER_FREQUENCY]
+        * dict_dis[constants.IOFields.XE_DISSOLVED_OFFSET_FREQUENCY]
+        * (-1.0),
+        phase_gas_acq_diss=config.phase_gas_acq_diss,
+        area_gas_acq_diss=config.area_gas_acq_diss,
+        optimized_conta_phase=config.recon.optimized_conta_phase,
+        fa_gas=dict_dis[constants.IOFields.FA_GAS],
     )
     return dict_dis
 
@@ -46,12 +44,6 @@ def prepare_traj(
         traj (np.array): trajectory array of shape (n_projections, n_points, 3)
     """
     data = data_dict[constants.IOFields.FIDS]
-    if config and config.recon.del_x is not constants.NONE:  # type: ignore
-        data_dict[constants.IOFields.GRAD_DELAY_X] = config.recon.del_x  # type: ignore
-        data_dict[constants.IOFields.GRAD_DELAY_Y] = config.recon.del_y  # type: ignore
-        data_dict[constants.IOFields.GRAD_DELAY_Z] = config.recon.del_z  # type: ignore
-    else:
-        logging.error("Gradient delay is not properly set in the config file")
 
     traj_x, traj_y, traj_z = traj_utils.generate_trajectory(
         sample_time=1e6 * data_dict[constants.IOFields.SAMPLE_TIME],
@@ -131,3 +123,85 @@ def remove_noisy_projections(
         indices=np.array(indices),
     )
     return data, traj
+
+
+def prepare_data_and_traj_keyhole(
+    data: np.ndarray,
+    traj: np.ndarray,
+    bin_indices: np.ndarray,
+    key_radius: int = 9,
+):
+    """Prepare data and trajectory for keyhole reconstruction.
+
+    Uses bin indices to construct a keyhole mask.
+
+    Args:
+        data: data FIDs of shape (n_projections, n_points)
+        traj: trajectory of shape (n_projections, n_points, 3)
+        high_bin_indices: indices of binned projections.
+        key_radius: radius of keyhole in pixels.
+    Returns:
+        A tuple of data and trajectory arrays. The data is flattened to a 1D array
+        of shape (K, 1)
+        The trajectory is flattened to a 2D array of shape (K, 3)
+    """
+    data_copy = data.copy()
+    data = data.copy()
+    data[:, 0:key_radius] = 0.0
+    normalization = (
+        np.mean(np.abs(data_copy[bin_indices, 0])) * 1 / np.abs(data_copy[:, 0])
+    )
+    data = data * np.mean(np.abs(data_copy[bin_indices, 0]))
+    data = np.divide(data, np.expand_dims(normalization, -1))
+    data[bin_indices, 0:key_radius] = data_copy[bin_indices, 0:key_radius]
+    data_flatten = np.delete(
+        recon_utils.flatten_data(data), np.where(data.flatten() == 0.0), axis=0
+    )
+
+    traj_flatten = np.delete(
+        recon_utils.flatten_traj(traj), np.where(data.flatten() == 0.0), axis=0
+    )
+    return data_flatten, traj_flatten
+
+
+def prepare_data_and_traj_keyhole_cs(
+    data: np.ndarray,
+    traj: np.ndarray,
+    bin_indices: np.ndarray,
+    dwell_time: float,
+    key_radius: int = 9,
+):
+    """Prepare data and trajectory for keyhole reconstruction.
+
+    Uses bin indices to construct a keyhole mask.
+
+    Args:
+        data: data FIDs of shape (n_projections, n_points)
+        traj: trajectory of shape (n_projections, n_points, 3)
+        high_bin_indices: indices of binned projections.
+        dwell_time: dwell time in seconds
+        key_radius: radius of keyhole in pixels.
+    Returns:
+        A tuple of data, trajectory, decay factor  arrays.
+        The data is flattened to a 1D array of shape (K, 1)
+        The trajectory is flattened to a 2D array of shape (K, 3)
+        The decay factor is flattened to a 1D array of shape (K, 1)
+    """
+    data_copy = data.copy()
+    data = data.copy()
+    data[:, 0:key_radius] = 0.0
+    data[bin_indices, 0:key_radius] = data_copy[bin_indices, 0:key_radius]
+    decay_factor = signal_utils.calculate_decay_factor(
+        data_copy, constants.T2STAR_DISSOLVED_3T, dwell_time=dwell_time
+    )
+    data_flatten = np.delete(
+        recon_utils.flatten_data(data), np.where(data.flatten() == 0.0), axis=0
+    )
+
+    traj_flatten = np.delete(
+        recon_utils.flatten_traj(traj), np.where(data.flatten() == 0.0), axis=0
+    )
+    decay_flatten = np.delete(
+        recon_utils.flatten_data(decay_factor), np.where(data.flatten() == 0.0), axis=0
+    )
+    return data_flatten, traj_flatten, decay_flatten
