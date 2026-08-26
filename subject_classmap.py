@@ -1254,6 +1254,10 @@ class Subject(object):
             constants.StatsIOFields.VENT_STDDEV: metrics.std(
                 self.image_gas_cor_norm, self.mask
             ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.VENT_COV: metrics.cov(
+                self.image_gas_cor_norm, self.mask
+            ),
             constants.StatsIOFields.RBC_SNR: float(
                 metrics.snr(self.image_rbc, self.mask)[0]
             ),
@@ -1275,6 +1279,10 @@ class Subject(object):
             constants.StatsIOFields.RBC_STDDEV: float(
                 metrics.std(self.image_rbc2gas, self.mask_vent)
             ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.RBC_COV: float(
+                metrics.cov(self.image_rbc2gas, self.mask_vent)
+            ),
             constants.StatsIOFields.MEMBRANE_SNR: float(
                 metrics.snr(self.image_membrane, self.mask)[0]
             ),
@@ -1295,6 +1303,10 @@ class Subject(object):
             ),
             constants.StatsIOFields.MEMBRANE_STDDEV: float(
                 metrics.std(self.image_membrane2gas, self.mask_vent)
+            ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.MEMBRANE_COV: float(
+                metrics.cov(self.image_membrane2gas, self.mask_vent)
             ),
             constants.StatsIOFields.ALVEOLAR_VOLUME: metrics.alveolar_volume(
                 self.image_gas_binned, self.mask, self.dict_dis[constants.IOFields.FOV]
@@ -2094,6 +2106,9 @@ class Subject(object):
                 osc_files = osc_files + ("tmp/osc_binned_color_corr.nii",)
 
             # move files
+            # try:
+            #     subfolder = os.path.join(self.config.data_dir, self.config.output_folder)
+            # except:
             subfolder_osc = os.path.join(self.config.data_dir, "osc_imaging")
             os.makedirs(subfolder_osc, exist_ok=True)
             io_utils.move_files(osc_files, subfolder_osc)

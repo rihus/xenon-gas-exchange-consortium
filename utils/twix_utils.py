@@ -350,9 +350,19 @@ def get_flipangle_dissolved(twix_obj: mapvbvd._attrdict.AttrDict) -> float:
             return float(twix_obj.hdr.MeasYaps[("sWiPMemBlock", "adFree", "6")])
         except:
             pass
+    ##Edited by RH to meet UAB twix header format
     try:
-        return float(twix_obj.hdr.Meas["adFlipAngleDegree"].split(" ")[1])
-    except:
+        fa_list = twix_obj.hdr.MeasYaps["adFlipAngleDegree"]
+        if isinstance(fa_list, list) and len(fa_list) >= 3:
+            return float(fa_list[2])
+    except Exception:
+        pass
+    try:
+        fa_string = twix_obj.hdr.Meas["adFlipAngleDegree"]
+        fa_split = [x for x in fa_string.split(" ") if x.strip()]
+        if len(fa_split) >= 3:
+            return float(fa_split[2])
+    except Exception:
         pass
     try:
         return float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "1")])
@@ -364,7 +374,6 @@ def get_flipangle_dissolved(twix_obj: mapvbvd._attrdict.AttrDict) -> float:
         pass
     raise ValueError("Unable to find dissolved-phase flip angle in twix object.")
 
-
 def get_flipangle_gas(twix_obj: mapvbvd._attrdict.AttrDict) -> float:
     """Get the gas phase flip angle in degrees.
 
@@ -374,12 +383,18 @@ def get_flipangle_gas(twix_obj: mapvbvd._attrdict.AttrDict) -> float:
         flip angle in degrees. Returns 0.5 degrees if not found.
     """
     try:
-        return float(twix_obj.hdr.Meas["adFlipAngleDegree"].split(" ")[0])
+        assert float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "0")]) < 10.0
+        return float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "0")])
     except:
         pass
     try:
-        assert float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "0")]) < 10.0
-        return float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "0")])
+        assert float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "1")]) < 10.0
+        return float(twix_obj.hdr.MeasYaps[("adFlipAngleDegree", "1")])
+    except:
+        pass
+    try:
+        assert float(twix_obj.hdr.Meas[("adFlipAngleDegree", "0")]) < 10.0
+        return float(twix_obj.hdr.Meas["adFlipAngleDegree"].split(" ")[0])
     except:
         pass
     try:

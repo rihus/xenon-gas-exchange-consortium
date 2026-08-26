@@ -129,6 +129,7 @@ def get_ute_twix_files(path: str) -> str:
             glob.glob(os.path.join(path, "**1H***.dat"))
             + glob.glob(os.path.join(path, "**BHUTE***.dat"))
             + glob.glob(os.path.join(path, "**ute***.dat"))
+            + glob.glob(os.path.join(path, "**UTE***.dat"))
             + glob.glob(os.path.join(path, "**h_radial***.dat"))
         )[0]
     except:

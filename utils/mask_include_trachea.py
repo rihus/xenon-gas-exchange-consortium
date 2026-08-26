@@ -62,8 +62,14 @@ def get_or_make_mask_include_trachea(
     # Internal reference nifti location
     ref_gas_nii_path = "tmp/image_gas_highreso.nii"
     if not os.path.exists(ref_gas_nii_path):
-        raise FileNotFoundError(
-            f"Expected {ref_gas_nii_path} to exist for auto trachea mask generation + saving."
+        # RH: regenerate from the in-memory array instead of hard-failing when the on-disk tmp nii wasn't (re)written.
+        logging.info(
+            f"{ref_gas_nii_path} not found; regenerating from in-memory "
+            "image_gas_highreso for auto trachea mask generation."
+        )
+        os.makedirs(os.path.dirname(ref_gas_nii_path), exist_ok=True)
+        nib.save(
+            nib.Nifti1Image(np.abs(image_gas_highreso), np.eye(4)), ref_gas_nii_path
         )
 
     logging.info("Auto-generating trachea mask (Otsu+hysteresis) from gas image array.")

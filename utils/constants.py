@@ -299,6 +299,10 @@ class StatsIOFields(object):
     RBC_STDDEV = "rbc_stddev"
     MEMBRANE_STDDEV = "membrane_stddev"
     VENT_STDDEV = "vent_stddev"
+    # RH: coefficient of variation, heterogeneity metric
+    RBC_COV = "rbc_cov"
+    MEMBRANE_COV = "membrane_cov"
+    VENT_COV = "vent_cov"
     DLCO_EST = "dlco_est"
     KCO_EST = "kco_est"
     RDP_BA = "rdp_ba"

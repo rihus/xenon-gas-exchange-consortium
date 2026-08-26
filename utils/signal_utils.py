@@ -10,6 +10,7 @@ import scipy.optimize as optimize
 import scipy.signal as signal
 import scipy.stats as stats
 from scipy.ndimage import convolve1d
+import logging
 
 from utils import constants
 
@@ -415,7 +416,13 @@ def detrend(data: np.ndarray) -> np.ndarray:
     y = data
 
     def func(x, a, b, c, d):
-        return a * np.exp(-b * x) + c * np.exp(-d * x)
+        ##RH func not converging for cchmc data so giving both options
+        try:
+            val_ =  a * np.exp(-b * x) + c * np.exp(-d * x)
+        except:
+            logging.info("bi-exponential fit failed in detrending... trying mono-exponential")
+            val_ =  a * np.exp(-b * x)
+        return val_
 
     popt, _ = optimize.curve_fit(
         func,
