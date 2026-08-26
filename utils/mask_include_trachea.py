@@ -6,7 +6,7 @@ import os
 import numpy as np
 import nibabel as nib
 
-from utils import trachea_mask
+from utils import trachea_mask, io_utils
 
 
 def get_or_make_mask_include_trachea(
@@ -59,19 +59,6 @@ def get_or_make_mask_include_trachea(
         )
         return base_lung_mask
 
-    # Internal reference nifti location
-    ref_gas_nii_path = "tmp/image_gas_highreso.nii"
-    if not os.path.exists(ref_gas_nii_path):
-        # RH: regenerate from the in-memory array instead of hard-failing when the on-disk tmp nii wasn't (re)written.
-        logging.info(
-            f"{ref_gas_nii_path} not found; regenerating from in-memory "
-            "image_gas_highreso for auto trachea mask generation."
-        )
-        os.makedirs(os.path.dirname(ref_gas_nii_path), exist_ok=True)
-        nib.save(
-            nib.Nifti1Image(np.abs(image_gas_highreso), np.eye(4)), ref_gas_nii_path
-        )
-
     logging.info("Auto-generating trachea mask (Otsu+hysteresis) from gas image array.")
     trach_mask = trachea_mask.otsu_hysteresis_mask_from_nifti(image_gas_highreso)
     trach_mask = np.asarray(trach_mask).astype(bool)
@@ -86,15 +73,17 @@ def get_or_make_mask_include_trachea(
     # Default output dir: <data_dir>/gx
     data_dir = str(getattr(config, "data_dir", "") or "").strip() or "."
     if str(getattr(config, "output_folder", "") or "") != "":
-    	out_dir = os.path.join(data_dir,str(getattr(config, "output_folder", "") or "").strip() or ".")
+        out_dir = os.path.join(
+            data_dir, str(getattr(config, "output_folder", "") or "").strip() or "."
+        )
     else:
-    	out_dir = os.path.join(data_dir,"gx")
+        out_dir = os.path.join(data_dir, "gx")
     os.makedirs(out_dir, exist_ok=True)
 
     # Default output name: mask_include_trachea.nii
     out_path = os.path.join(out_dir, "mask_include_trachea.nii")
 
-    trachea_mask.save_mask_like(ref_gas_nii_path, combined, out_path)
+    io_utils.export_nii(combined.astype(float), out_path)
     logging.info(f"Saved mask_include_trachea to: {out_path}")
 
     # Cache into config
