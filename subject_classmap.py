@@ -1579,6 +1579,7 @@ class Subject(object):
             constants.IOFields.SEX: self.dict_dis[constants.IOFields.SEX],
             constants.IOFields.HEIGHT: self.dict_dis[constants.IOFields.HEIGHT],
             constants.IOFields.WEIGHT: self.dict_dis[constants.IOFields.WEIGHT],
+            constants.IOFields.BMI: self.dict_dis[constants.IOFields.WEIGHT]/((self.dict_dis[constants.IOFields.HEIGHT]/100)**2),
             constants.IOFields.VENT_NORMALIZATION_METHOD: self.config.vent_normalization_method,
         }
         return self.dict_info
@@ -2094,7 +2095,11 @@ class Subject(object):
                 osc_files = osc_files + ("tmp/osc_binned_color_corr.nii",)
 
             # move files
-            subfolder_osc = os.path.join(self.config.data_dir, "osc_imaging")
+            try:
+                osc_folder_name = "{}_osc_imaging".format(self.config.output_folder)
+            except:
+                osc_folder_name = "osc_imaging"
+            subfolder_osc = os.path.join(self.config.data_dir, osc_folder_name)
             os.makedirs(subfolder_osc, exist_ok=True)
             io_utils.move_files(osc_files, subfolder_osc)
 
