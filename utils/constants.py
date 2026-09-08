@@ -317,6 +317,9 @@ class StatsIOFields(object):
     OSC_DEFECTLOW_PCT = "osc_defectlow"
     OSC_HIGH_PCT = "osc_high"
     OSC_MEAN = "osc_mean"
+    # RH: unbinned oscillation heterogeneity metrics
+    OSC_STDDEV = "osc_stddev"
+    OSC_COV = "osc_cov"
     OSC_NEGATIVE_PCT = "osc_negative"
     KEY_RADIUS = "key_radius"
 

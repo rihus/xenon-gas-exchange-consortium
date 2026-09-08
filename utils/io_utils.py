@@ -304,10 +304,27 @@ def read_dis_twix(
         ramp_time = twix_utils.get_ramp_time(twix_obj)
 
     return {
-        constants.IOFields.AGE: twix_utils.get_patient_age(twix_obj),
-        constants.IOFields.SEX: twix_utils.get_patient_sex(twix_obj),
-        constants.IOFields.HEIGHT: twix_utils.get_patient_height(twix_obj),
-        constants.IOFields.WEIGHT: twix_utils.get_patient_weight(twix_obj),
+        # RH: manual override from config, else header
+        constants.IOFields.AGE: (
+            config.age
+            if config is not None and config.age
+            else twix_utils.get_patient_age(twix_obj)
+        ),
+        constants.IOFields.SEX: (
+            config.sex
+            if config is not None and config.sex
+            else twix_utils.get_patient_sex(twix_obj)
+        ),
+        constants.IOFields.HEIGHT: (
+            config.height
+            if config is not None and config.height
+            else twix_utils.get_patient_height(twix_obj)
+        ),
+        constants.IOFields.WEIGHT: (
+            config.weight
+            if config is not None and config.weight
+            else twix_utils.get_patient_weight(twix_obj)
+        ),
         constants.IOFields.SAMPLE_TIME: twix_utils.get_sample_time(twix_obj),
         constants.IOFields.FA_DIS: twix_utils.get_flipangle_dissolved(twix_obj),
         constants.IOFields.FA_GAS: twix_utils.get_flipangle_gas(twix_obj),
@@ -441,12 +458,18 @@ def read_dyn_mrd(path: str) -> Dict[str, Any]:
     }
 
 
-def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
+def read_dis_mrd(
+    path: str,
+    multi_echo: bool,
+    config: Optional[ml_collections.ConfigDict] = None,
+) -> Dict[str, Any]:
     """Read 1-point dixon disssolved phase imaging mrd file.
 
     Args:
         path: str file path of mrd file
         multi_echo: option to perform multi echo
+        config: ConfigDict, optional. If provided, age/sex/height/weight are
+            taken from config when set (RH), else read from the mrd header.
     Returns: dictionary containing data and metadata extracted from the mrd file.
     This includes:
         - Age: Patient age as a float.
@@ -480,10 +503,27 @@ def read_dis_mrd(path: str, multi_echo: bool) -> Dict[str, Any]:
 
     data_dict = mrd_utils.get_gx_data(dataset, multi_echo)
     return {
-        constants.IOFields.AGE: mrd_utils.get_patient_age(header),
-        constants.IOFields.SEX: mrd_utils.get_patient_sex(header),
-        constants.IOFields.HEIGHT: mrd_utils.get_patient_height(header),
-        constants.IOFields.WEIGHT: mrd_utils.get_patient_weight(header),
+        # RH: manual override from config, else header
+        constants.IOFields.AGE: (
+            config.age
+            if config is not None and config.age
+            else mrd_utils.get_patient_age(header)
+        ),
+        constants.IOFields.SEX: (
+            config.sex
+            if config is not None and config.sex
+            else mrd_utils.get_patient_sex(header)
+        ),
+        constants.IOFields.HEIGHT: (
+            config.height
+            if config is not None and config.height
+            else mrd_utils.get_patient_height(header)
+        ),
+        constants.IOFields.WEIGHT: (
+            config.weight
+            if config is not None and config.weight
+            else mrd_utils.get_patient_weight(header)
+        ),
         constants.IOFields.BANDWIDTH: np.nan,
         constants.IOFields.SAMPLE_TIME: mrd_utils.get_sample_time_gas_exchange(dataset),
         constants.IOFields.FA_DIS: mrd_utils.get_flipangle_dissolved(header),

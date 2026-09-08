@@ -33,6 +33,10 @@ class Config(config_dict.ConfigDict):
         subject_id: str, the subject id
         vol_correction_key: str,lung volume correction key (NONE, RBC_AND_MEMBRANE)
         corrected_lung_volume: float, target lung volume in L
+        age: float, manual subject age override in years (0 = read from header)
+        sex: str, manual subject sex override "M"/"F" ("" = read from header)
+        height: float, manual subject height override in cm (0 = read from header)
+        weight: float, manual subject weight override in kg (0 = read from header)
     """
 
     def __init__(self):
@@ -60,6 +64,11 @@ class Config(config_dict.ConfigDict):
         self.hb = 0.0
         self.vol_correction_key = constants.VolCorrectionKey.NONE.value
         self.corrected_lung_volume = "NA"
+        # RH: optional manual overrides
+        self.age = 0 ## default 0 => read from header
+        self.sex = "" ## default "" => read from header: Specify "M" or "F"
+        self.height = 0.0 ## default 0.0 => read from header
+        self.weight = 0.0 ## default 0.0 => read from header
         self.dicom_proton_dir = ""
         self.multi_echo = False
         self.registration_key = constants.RegistrationKey.SKIP.value

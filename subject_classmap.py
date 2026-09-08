@@ -173,6 +173,7 @@ class Subject(object):
         self.dict_dis = io_utils.read_dis_mrd(
             io_utils.get_dis_mrd_files(str(self.config.data_dir)),
             self.config.multi_echo,
+            config=self.config,  # RH: enable age/sex/height/weight override
         )
         try:
             self.dict_dyn = io_utils.read_dyn_mrd(
@@ -1470,6 +1471,13 @@ class Subject(object):
                     ),
                     constants.StatsIOFields.OSC_MEAN: float(
                         metrics.mean(self.image_rbc_osc, self.mask_rbc)
+                    ),
+                    # RH: heterogeneity metrics, unbinned
+                    constants.StatsIOFields.OSC_STDDEV: float(
+                        metrics.std(self.image_rbc_osc, self.mask_rbc)
+                    ),
+                    constants.StatsIOFields.OSC_COV: float(
+                        metrics.cov(self.image_rbc_osc, self.mask_rbc)
                     ),
                     constants.StatsIOFields.OSC_NEGATIVE_PCT: metrics.negative_percentage(
                         self.image_rbc_osc, self.mask_rbc
