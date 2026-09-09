@@ -144,7 +144,10 @@ def GLI_volume(age: float, sex: str, height: float, volume_type: str = "frc") ->
 
     if age_int and height_int:
         predicted_value = get_predicted(int(age), int(height))
-        return predicted_value if predicted_value is not None else 0.0
+        ##RH edit for case when age is outside GLI range and an integer
+        if predicted_value is not None:
+            return predicted_value
+        #return predicted_value if predicted_value is not None else 0.0
 
     elif age_int or height_int:
         if age_int:
@@ -280,6 +283,19 @@ def std(image: np.ndarray, mask: np.ndarray) -> float:
         Standard deviation of the image.
     """
     return np.std(image[mask])
+
+
+# RH: heterogeneity metric, added for vent/RBC/membrane maps
+def cov(image: np.ndarray, mask: np.ndarray) -> float:
+    """Get the coefficient of variation (%) of the image.
+
+    Args:
+        image: np.ndarray. The image.
+        mask: np.ndarray. mask of the region of interest.
+    Returns:
+        Coefficient of variation (%) of the image.
+    """
+    return 100 * np.std(image[mask]) / np.mean(image[mask])
 
 
 def dlco(

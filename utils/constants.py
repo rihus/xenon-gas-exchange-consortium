@@ -300,6 +300,10 @@ class StatsIOFields(object):
     RBC_STDDEV = "rbc_stddev"
     MEMBRANE_STDDEV = "membrane_stddev"
     VENT_STDDEV = "vent_stddev"
+    # RH: coefficient of variation, heterogeneity metric
+    RBC_COV = "rbc_cov"
+    MEMBRANE_COV = "membrane_cov"
+    VENT_COV = "vent_cov"
     DLCO_EST = "dlco_est"
     KCO_EST = "kco_est"
     RDP_BA = "rdp_ba"
@@ -313,6 +317,9 @@ class StatsIOFields(object):
     OSC_DEFECTLOW_PCT = "osc_defectlow"
     OSC_HIGH_PCT = "osc_high"
     OSC_MEAN = "osc_mean"
+    # RH: unbinned oscillation heterogeneity metrics
+    OSC_STDDEV = "osc_stddev"
+    OSC_COV = "osc_cov"
     OSC_NEGATIVE_PCT = "osc_negative"
     KEY_RADIUS = "key_radius"
 

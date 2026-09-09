@@ -173,6 +173,7 @@ class Subject(object):
         self.dict_dis = io_utils.read_dis_mrd(
             io_utils.get_dis_mrd_files(str(self.config.data_dir)),
             self.config.multi_echo,
+            config=self.config,  # RH: enable age/sex/height/weight override
         )
         try:
             self.dict_dyn = io_utils.read_dyn_mrd(
@@ -1254,6 +1255,10 @@ class Subject(object):
             constants.StatsIOFields.VENT_STDDEV: metrics.std(
                 self.image_gas_cor_norm, self.mask
             ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.VENT_COV: metrics.cov(
+                self.image_gas_cor_norm, self.mask
+            ),
             constants.StatsIOFields.RBC_SNR: float(
                 metrics.snr(self.image_rbc, self.mask)[0]
             ),
@@ -1275,6 +1280,10 @@ class Subject(object):
             constants.StatsIOFields.RBC_STDDEV: float(
                 metrics.std(self.image_rbc2gas, self.mask_vent)
             ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.RBC_COV: float(
+                metrics.cov(self.image_rbc2gas, self.mask_vent)
+            ),
             constants.StatsIOFields.MEMBRANE_SNR: float(
                 metrics.snr(self.image_membrane, self.mask)[0]
             ),
@@ -1295,6 +1304,10 @@ class Subject(object):
             ),
             constants.StatsIOFields.MEMBRANE_STDDEV: float(
                 metrics.std(self.image_membrane2gas, self.mask_vent)
+            ),
+            # RH: heterogeneity metric
+            constants.StatsIOFields.MEMBRANE_COV: float(
+                metrics.cov(self.image_membrane2gas, self.mask_vent)
             ),
             constants.StatsIOFields.ALVEOLAR_VOLUME: metrics.alveolar_volume(
                 self.image_gas_binned, self.mask, self.dict_dis[constants.IOFields.FOV]
@@ -1458,6 +1471,13 @@ class Subject(object):
                     ),
                     constants.StatsIOFields.OSC_MEAN: float(
                         metrics.mean(self.image_rbc_osc, self.mask_rbc)
+                    ),
+                    # RH: heterogeneity metrics, unbinned
+                    constants.StatsIOFields.OSC_STDDEV: float(
+                        metrics.std(self.image_rbc_osc, self.mask_rbc)
+                    ),
+                    constants.StatsIOFields.OSC_COV: float(
+                        metrics.cov(self.image_rbc_osc, self.mask_rbc)
                     ),
                     constants.StatsIOFields.OSC_NEGATIVE_PCT: metrics.negative_percentage(
                         self.image_rbc_osc, self.mask_rbc
