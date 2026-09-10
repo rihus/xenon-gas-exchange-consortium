@@ -619,7 +619,7 @@ def get_vol_correction(
         vol_correction_factor_rbc (float): rbc volume correction factor
         vol_correction_factor_membrane (float): membrane volume correction factor
     """
-    V2 = expected_lung_volume
+    V2 = float(expected_lung_volume)
 
     vol_correction_factor_rbc = (
         vol * (1 + constants.VolCorrection.ALPHA_RBC)
