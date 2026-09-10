@@ -1976,9 +1976,21 @@ class Subject(object):
             "tmp/gas_highsnr.nii",
             self.dict_dis[constants.IOFields.FOV],
         )
+        # RH: continuous (unbinned) normalized ventilation, for reference-threshold building
+        io_utils.export_nii(
+            np.abs(self.image_gas_cor_norm),
+            "tmp/gas_cor_norm.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
         io_utils.export_nii(
             np.abs(self.image_rbc),
             "tmp/rbc.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
+        # RH: continuous (unbinned) RBC:gas ratio, for reference-threshold building
+        io_utils.export_nii(
+            np.abs(self.image_rbc2gas),
+            "tmp/rbc2gas.nii",
             self.dict_dis[constants.IOFields.FOV],
         )
         io_utils.export_nii(
@@ -1994,6 +2006,12 @@ class Subject(object):
         io_utils.export_nii(
             self.mask.astype(float),
             "tmp/mask_reg.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
+        # RH: dissolved-phase mask, for reference-threshold building (membrane/RBC use this, not self.mask)
+        io_utils.export_nii(
+            self.mask_vent.astype(float),
+            "tmp/mask_vent.nii",
             self.dict_dis[constants.IOFields.FOV],
         )
         io_utils.export_nii(
@@ -2096,6 +2114,11 @@ class Subject(object):
             "tmp/membrane2gas_rgb.nii",
             "tmp/proton_reg.nii",
             "tmp/rbc2gas_rgb.nii",
+            # RH: continuous (unbinned) images + dissolved mask, for reference-threshold building
+            "tmp/gas_cor_norm.nii",
+            "tmp/rbc2gas.nii",
+            "tmp/membrane2gas.nii",
+            "tmp/mask_vent.nii",
         )
 
         # move files
