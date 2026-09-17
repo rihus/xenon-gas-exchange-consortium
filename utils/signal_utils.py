@@ -416,7 +416,7 @@ def detrend(data: np.ndarray) -> np.ndarray:
     y = data
 
     def func(x, a, b, c, d):
-        ##RH func not converging for cchmc data so giving both options
+        ##RH func not converging for cchmc data, with bi-exponential fit, so giving it both options
         try:
             val_ =  a * np.exp(-b * x) + c * np.exp(-d * x)
         except:
