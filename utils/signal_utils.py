@@ -415,26 +415,43 @@ def detrend(data: np.ndarray) -> np.ndarray:
     x = np.arange(data.shape[0])
     y = data
 
-    def func(x, a, b, c, d):
-        ##RH func not converging for cchmc data, with bi-exponential fit, so giving it both options
-        try:
-            val_ =  a * np.exp(-b * x) + c * np.exp(-d * x)
-        except:
-            logging.info("bi-exponential fit failed in detrending... trying mono-exponential")
-            val_ =  a * np.exp(-b * x)
+    def func_bi(x, a, b, c, d):
+        ##RH: bi-exponential fit
+        val_ =  a * np.exp(-b * x) + c * np.exp(-d * x)
         return val_
 
-    popt, _ = optimize.curve_fit(
-        func,
-        x,
-        y,
-        p0=[1, 0.1, 1, 0.1],
-        method="trf",
-        ftol=1e-6,
-        xtol=1e-6,
-        max_nfev=600,
-    )
-    return data - func(x, *popt)
+    def func_mono(x, a, b, c, d):
+        ##RH mono-exponential fit
+        val_ =  a * np.exp(-b * x)
+        return val_
+
+    ##RH func not converging for cchmc data with bi-exponential fit, so giving it both options
+    try:
+        popt, _ = optimize.curve_fit(
+            func_bi,
+            x,
+            y,
+            p0=[1, 0.1, 1, 0.1],
+            method="trf",
+            ftol=1e-6,
+            xtol=1e-6,
+            max_nfev=600,
+        )
+        return data - func_bi(x, *popt)
+    except:
+        logging.info("*** bi-exponential fit failed in detrending... trying mono-exponential ***")
+        popt, _ = optimize.curve_fit(
+            func_mono,
+            x,
+            y,
+            p0=[1, 0.1, 1, 0.1],
+            method="trf",
+            ftol=1e-6,
+            xtol=1e-6,
+            max_nfev=600,
+        )
+        return data - func_mono(x, *popt)
+    
 
 
 def find_peaks(data: np.ndarray, distance: int = 5) -> np.ndarray:
