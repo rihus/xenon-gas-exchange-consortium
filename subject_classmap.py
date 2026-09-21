@@ -2074,6 +2074,8 @@ class Subject(object):
                 "tmp/osc_binned_color.nii",
             )
             io_utils.export_nii(self.image_rbc_osc * self.mask_rbc, "tmp/osc.nii")
+            # RH: explicit mask for osc.nii, for reference-threshold building (not mask_vent)
+            io_utils.export_nii(self.mask_rbc.astype(float), "tmp/mask_rbc.nii")
             if self.config.osc_recon.vc_correction:
                 io_utils.export_nii_4d(
                     plot.map_grey_to_rgb(
@@ -2133,9 +2135,15 @@ class Subject(object):
             osc_files = (
                 "tmp/{}_report_osc_imaging.pdf".format(self.config.subject_id),
                 "tmp/osc_binned_color.nii",
+                # RH: continuous (unbinned) oscillation image + mask, for reference-threshold building
+                "tmp/osc.nii",
+                "tmp/mask_rbc.nii",
             )
             if self.config.osc_recon.vc_correction:
-                osc_files = osc_files + ("tmp/osc_binned_color_corr.nii",)
+                osc_files = osc_files + (
+                    "tmp/osc_binned_color_corr.nii",
+                    "tmp/osc_corr.nii",
+                )
 
             # move files
             try:

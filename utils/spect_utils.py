@@ -68,6 +68,8 @@ def get_frequency_guess(
     Returns: 3-element array of initial frequency guesses corresponding to the RBC,
         membrane, and gas frequencys in MHz
     """
+    # RH: truncate to int so a float like 208.03 still matches 208
+    rf_excitation = int(rf_excitation)
     if rf_excitation == 208:
         return np.array([10, -21.7, -208.4]) * center_freq
     elif rf_excitation == 218:
@@ -89,6 +91,8 @@ def get_area_guess(data: Optional[np.ndarray], center_freq: float, rf_excitation
     Returns: 3-element array of initial area guesses corresponding to the RBC,
         membrane, and gas frequencys in MHz
     """
+    # RH: truncate to int so a float like 208.03 still matches 208
+    rf_excitation = int(rf_excitation)
     if rf_excitation == 208:
         return np.array([1, 1, 1])
     elif rf_excitation == 218:

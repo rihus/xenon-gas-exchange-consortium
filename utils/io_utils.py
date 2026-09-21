@@ -89,11 +89,11 @@ def get_dyn_twix_files(path: str) -> str:
         str file path of twix file
     """
     try:
+        # RH: [Dd]/[Cc] to read-in both upper/lower case
         return (
-            glob.glob(os.path.join(path, "**cali**.dat"))
-            + glob.glob(os.path.join(path, "**dynamic**.dat"))
-            + glob.glob(os.path.join(path, "**Dynamic**.dat"))
-            + glob.glob(os.path.join(path, "**dyn**.dat"))
+            glob.glob(os.path.join(path, "**[Cc]ali**.dat"))
+            + glob.glob(os.path.join(path, "**[Dd]ynamic**.dat"))
+            + glob.glob(os.path.join(path, "**[Dd]yn**.dat"))
         )[0]
     except:
         raise ValueError("Can't find twix file in path.")
@@ -108,10 +108,8 @@ def get_dis_twix_files(path: str) -> str:
         str file path of twix file
     """
     try:
-        return (
-            glob.glob(os.path.join(path, "**dixon***.dat"))
-            + glob.glob(os.path.join(path, "**Dixon***.dat"))
-        )[0]
+        # RH: [Dd] to read-in both upper/lower case
+        return (glob.glob(os.path.join(path, "**[Dd]ixon***.dat")))[0]
     except:
         raise ValueError("Can't find twix file in path.")
 
@@ -125,12 +123,13 @@ def get_ute_twix_files(path: str) -> str:
         str file path of twix file
     """
     try:
+        # RH: [Uu][Tt][Ee] matches "ute"/"UTE" to read-in both upper/lower case
+        ##RH: Similarly [Hh]/[Rr] to read-in both upper/lower case
         return (
             glob.glob(os.path.join(path, "**1H***.dat"))
             + glob.glob(os.path.join(path, "**BHUTE***.dat"))
-            + glob.glob(os.path.join(path, "**ute***.dat"))
-            + glob.glob(os.path.join(path, "**UTE***.dat"))
-            + glob.glob(os.path.join(path, "**h_radial***.dat"))
+            + glob.glob(os.path.join(path, "**[Uu][Tt][Ee]***.dat"))
+            + glob.glob(os.path.join(path, "**[Hh]_[Rr]adial***.dat"))
         )[0]
     except:
         raise ValueError("Can't find twix file in path.")
@@ -145,11 +144,10 @@ def get_dyn_mrd_files(path: str) -> str:
         str file path of MRD file
     """
     try:
+        # RH: [Cc] to read-in both upper/lower case
         return (
-            glob.glob(os.path.join(path, "**Calibration***.h5"))
-            + glob.glob(os.path.join(path, "**calibration***.h5"))
-            + glob.glob(os.path.join(path, "**Calibration***.mrd"))
-            + glob.glob(os.path.join(path, "**calibration***.mrd"))
+            glob.glob(os.path.join(path, "**[Cc]alibration***.h5"))
+            + glob.glob(os.path.join(path, "**[Cc]alibration***.mrd"))
         )[0]
     except:
         raise ValueError("Can't find MRD file in path.")
@@ -164,9 +162,12 @@ def get_dis_mrd_files(path: str) -> str:
         str file path of MRD file
     """
     try:
+        # RH: [Dd]/[Gg] to read-in both upper/lower case
         return (
-            glob.glob(os.path.join(path, "**dixon***.h5"))
-            + glob.glob(os.path.join(path, "**dixon***.mrd"))
+            glob.glob(os.path.join(path, "**[Dd]ixon***.h5"))
+            + glob.glob(os.path.join(path, "**[Gg]exch***.h5"))
+            + glob.glob(os.path.join(path, "**[Gg]as***.h5"))
+            + glob.glob(os.path.join(path, "**[Dd]ixon***.mrd"))
         )[0]
     except:
         raise ValueError("Can't find MRD file in path.")
@@ -180,10 +181,12 @@ def get_ute_mrd_files(path: str) -> str:
     Returns:
         str file path of MRD file
     """
+    #RH: [Pp]/[Mm] to read-in both upper/lower case
     try:
         return (
-            glob.glob(os.path.join(path, "**proton***.h5"))
-            + glob.glob(os.path.join(path, "**proton***.mrd"))
+            glob.glob(os.path.join(path, "**[Pp]roton***.h5"))
+            + glob.glob(os.path.join(path, "**[Mm]ask***.h5"))
+            + glob.glob(os.path.join(path, "**[Pp]roton***.mrd"))
         )[0]
     except:
         raise ValueError("Can't find MRD file in path.")
