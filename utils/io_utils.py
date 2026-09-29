@@ -763,7 +763,12 @@ def get_output_subfolder(config: ml_collections.ConfigDict) -> str:
     data_dir = str(getattr(config, "data_dir", "") or "").strip() or "."
     folder = str(getattr(config, "output_folder", "") or "").strip() or "gx"
     osc_recon = getattr(config, "osc_recon", None)
-    if osc_recon is not None and getattr(osc_recon, "oscillation_analysis", False):
+    # RH: skip "_osc" if name already has "osc", to avoid e.g. gx_osc_..._osc
+    if (
+        osc_recon is not None
+        and getattr(osc_recon, "oscillation_analysis", False)
+        and "osc" not in folder.lower()
+    ):
         folder = folder + "_osc"
     return os.path.join(data_dir, folder)
 
