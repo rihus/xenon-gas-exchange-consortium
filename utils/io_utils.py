@@ -750,6 +750,24 @@ def move_files(source_paths: list, destination_path: str) -> None:
             shutil.move(path, os.path.join(destination_path, fname))
 
 
+# RH: one place for output folder name, "_osc" added when oscillation analysis is on
+def get_output_subfolder(config: ml_collections.ConfigDict) -> str:
+    """Get the per-subject output folder path.
+
+    Args:
+        config (ml_collections.ConfigDict): config dict.
+
+    Returns:
+        <data_dir>/<output_folder>, with "_osc" appended if oscillation analysis is on.
+    """
+    data_dir = str(getattr(config, "data_dir", "") or "").strip() or "."
+    folder = str(getattr(config, "output_folder", "") or "").strip() or "gx"
+    osc_recon = getattr(config, "osc_recon", None)
+    if osc_recon is not None and getattr(osc_recon, "oscillation_analysis", False):
+        folder = folder + "_osc"
+    return os.path.join(data_dir, folder)
+
+
 def check_real_number(input_data):
     input_data = np.asarray(input_data).squeeze()  # allow scalar or 1-element array
     return input_data.shape == () and np.isreal(input_data) and np.isfinite(input_data)

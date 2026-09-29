@@ -1898,7 +1898,8 @@ class Subject(object):
         )
 
         # combine PDFs into one
-        path = "tmp/{}_report.pdf".format(self.config.subject_id)
+        # RH: _gx_ to tell apart from osc report in the same folder
+        path = "tmp/{}_gx_report.pdf".format(self.config.subject_id)
         report.combine_pdfs(pdf_list, path)
 
         # oscillation imaging report
@@ -1929,8 +1930,9 @@ class Subject(object):
                 )
                 pdf_list.append(corr_path)
 
+            # RH: renamed to match {id}_gx_report.pdf
             final_path = os.path.join(
-                "tmp/{}_report_osc_imaging.pdf".format(self.config.subject_id),
+                "tmp/{}_osc_report.pdf".format(self.config.subject_id),
             )
             report.combine_pdfs(pdf_list, final_path)
 
@@ -2108,7 +2110,7 @@ class Subject(object):
         # define files to move
         output_files = (
             "tmp/{}_config_gx_imaging.json".format(self.config.subject_id),
-            "tmp/{}_report.pdf".format(self.config.subject_id),
+            "tmp/{}_gx_report.pdf".format(self.config.subject_id),
             "tmp/{}_stats.csv".format(self.config.subject_id),
             "tmp/gas_highreso.nii",
             "tmp/gas_rgb.nii",
@@ -2124,16 +2126,14 @@ class Subject(object):
         )
 
         # move files
-        try:
-            subfolder = os.path.join(self.config.data_dir, self.config.output_folder)
-        except:
-            subfolder = os.path.join(self.config.data_dir, "gx")
+        # RH: gx, or gx_osc when oscillation analysis is on
+        subfolder = io_utils.get_output_subfolder(self.config)
         os.makedirs(subfolder, exist_ok=True)
         io_utils.move_files(output_files, subfolder)
 
         if self.config.osc_recon.oscillation_analysis:
             osc_files = (
-                "tmp/{}_report_osc_imaging.pdf".format(self.config.subject_id),
+                "tmp/{}_osc_report.pdf".format(self.config.subject_id),
                 "tmp/osc_binned_color.nii",
                 # RH: continuous (unbinned) oscillation image + mask, for reference-threshold building
                 "tmp/osc.nii",
@@ -2145,14 +2145,8 @@ class Subject(object):
                     "tmp/osc_corr.nii",
                 )
 
-            # move files
-            try:
-                osc_folder_name = "{}_osc_imaging".format(self.config.output_folder)
-            except:
-                osc_folder_name = "osc_imaging"
-            subfolder_osc = os.path.join(self.config.data_dir, osc_folder_name)
-            os.makedirs(subfolder_osc, exist_ok=True)
-            io_utils.move_files(osc_files, subfolder_osc)
+            # RH: osc files into same folder as gas-exchange
+            io_utils.move_files(osc_files, subfolder)
 
     def check_git_version(self) -> None:
         """
