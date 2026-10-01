@@ -66,10 +66,10 @@ class Config(config_dict.ConfigDict):
         self.vol_correction_key = constants.VolCorrectionKey.NONE.value
         self.corrected_lung_volume = "NA"
         # RH: optional manual overrides
-        self.age = 0 ## default 0 => read from header
-        self.sex = "" ## default "" => read from header: Specify "M" or "F"
-        self.height = 0.0 ## default 0.0 => read from header
-        self.weight = 0.0 ## default 0.0 => read from header
+        self.age = 0 ## default 0 (age in years) => read from header
+        self.sex = "" ## default "" (Specify "M" or "F") => read from header
+        self.height = 0.0 ## default 0.0 (Height in cm) => read from header
+        self.weight = 0.0 ## default 0.0 (Weight in Kg) => read from header
         self.dicom_proton_dir = ""
         self.multi_echo = False
         self.registration_key = constants.RegistrationKey.SKIP.value
