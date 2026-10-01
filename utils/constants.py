@@ -415,6 +415,8 @@ class NormalizationMethods(object):
     GLB_FV = "glb_fv"  # Normalize to estimate fractional ventilation using bag volume and voxel size
     GLB_MA = "glb_ma" # Normalize to unit-mean inside mask (like MEAN), then clip high outliers at the masked 99th percentile to stabilize scaling.
     THRESHOLD_MA = "threshold_ma"  # Use mean-anchor normalization, then apply thresholding instead of linear binning to separate ventilation-defect and healthy voxels.
+    # RH: run all four above in one go, each into its own subfolder
+    ALL = "all"
 
 class CMAP(object):
     """Maps of binned values to color values."""

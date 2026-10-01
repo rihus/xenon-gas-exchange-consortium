@@ -138,6 +138,8 @@ class Subject(object):
         self.va = ""
         self.kco = ""
         self.dlco = ""
+        # RH: set per pass when vent_normalization_method is ALL, "" otherwise
+        self.method_subdir = ""
 
     def read_twix_files(self):
         """Read in twix files to dictionary.
@@ -1613,6 +1615,8 @@ class Subject(object):
             bag_volume=self.config.bag_volume,
             method=constants.NormalizationMethods.PERCENTILE,
         )
+        # RH: clip to [0, 1] so RGB overlays don't trigger imshow clipping warnings
+        proton_reg = np.clip(proton_reg, 0, 1)
         plot.plot_montage_grey(
             image=np.abs(self.image_gas_highreso),
             path="tmp/montage_vent.png",
@@ -2126,8 +2130,8 @@ class Subject(object):
         )
 
         # move files
-        # RH: gx, or gx_osc when oscillation analysis is on
-        subfolder = io_utils.get_output_subfolder(self.config)
+        # RH: gx, or gx_osc when oscillation analysis is on (+ method subfolder in ALL mode)
+        subfolder = io_utils.get_output_subfolder(self.config, self.method_subdir)
         os.makedirs(subfolder, exist_ok=True)
         io_utils.move_files(output_files, subfolder)
 
