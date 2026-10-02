@@ -43,6 +43,8 @@ def bin_rbc_oscillations(
     plt.plot(data_rbc_k0_proc, label="Data")
     plt.title("Raw RBC k0")
     plt.savefig("tmp/Rawk0.png")
+    # RH: close debug figures so they do not pile up (ALL mode / batch runs)
+    plt.close()
 
     # smooth data
     window_size = int(1 / (5 * TR))
@@ -55,6 +57,7 @@ def bin_rbc_oscillations(
     plt.plot(data_rbc_k0_proc, label="Data")
     plt.title("Smoothed RBC k0")
     plt.savefig("tmp/Smoothedk0.png")
+    plt.close()
 
     if method == constants.BinningMethods.BANDPASS:
         # normalize and detrend by gas k0
@@ -66,6 +69,7 @@ def bin_rbc_oscillations(
         plt.plot(data_rbc_k0_proc, label="Data")
         plt.title("Normalized and Detrended RBC k0")
         plt.savefig("tmp/normalizedk0.png")
+        plt.close()
 
         # apply bandpass filter
         data_rbc_k0_proc = signal_utils.bandpass(
@@ -76,6 +80,7 @@ def bin_rbc_oscillations(
         plt.plot(data_rbc_k0_proc, label="Data")
         plt.title("Bandpassed RBC k0")
         plt.savefig("tmp/bandpassedk0.png")
+        plt.close()
 
         k0_sine_fit_data, _ = signal_utils.osc_fit_sine(
             data_rbc_k0_proc, np.linspace(0, 15, data_rbc_k0_proc.size)
@@ -95,6 +100,7 @@ def bin_rbc_oscillations(
         )
         plt.title("Sine Fit to Bandpass Filtered Data")
         plt.savefig("tmp/sinefitk0.png")
+        plt.close()
 
     elif method == constants.BinningMethods.FIT_SINE:
         bias = np.mean(data_rbc_k0_proc)

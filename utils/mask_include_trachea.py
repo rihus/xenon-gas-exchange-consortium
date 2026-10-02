@@ -71,13 +71,8 @@ def get_or_make_mask_include_trachea(
     combined = np.logical_or(base_lung_mask, trach_mask)
 
     # Default output dir: <data_dir>/gx
-    data_dir = str(getattr(config, "data_dir", "") or "").strip() or "."
-    if str(getattr(config, "output_folder", "") or "") != "":
-        out_dir = os.path.join(
-            data_dir, str(getattr(config, "output_folder", "") or "").strip() or "."
-        )
-    else:
-        out_dir = os.path.join(data_dir, "gx")
+    # RH: same folder as other outputs (gx or gx_osc)
+    out_dir = io_utils.get_output_subfolder(config)
     os.makedirs(out_dir, exist_ok=True)
 
     # Default output name: mask_include_trachea.nii

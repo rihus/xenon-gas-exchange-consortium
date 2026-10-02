@@ -308,25 +308,22 @@ def read_dis_twix(
 
     return {
         # RH: manual override from config, else header
+        # RH: getattr so configs without age/sex/height/weight fall back to header
         constants.IOFields.AGE: (
-            config.age
-            if config is not None and config.age
-            else twix_utils.get_patient_age(twix_obj)
+            getattr(config, "age", None)
+            or twix_utils.get_patient_age(twix_obj)
         ),
         constants.IOFields.SEX: (
-            config.sex
-            if config is not None and config.sex
-            else twix_utils.get_patient_sex(twix_obj)
+            getattr(config, "sex", None)
+            or twix_utils.get_patient_sex(twix_obj)
         ),
         constants.IOFields.HEIGHT: (
-            config.height
-            if config is not None and config.height
-            else twix_utils.get_patient_height(twix_obj)
+            getattr(config, "height", None)
+            or twix_utils.get_patient_height(twix_obj)
         ),
         constants.IOFields.WEIGHT: (
-            config.weight
-            if config is not None and config.weight
-            else twix_utils.get_patient_weight(twix_obj)
+            getattr(config, "weight", None)
+            or twix_utils.get_patient_weight(twix_obj)
         ),
         constants.IOFields.SAMPLE_TIME: twix_utils.get_sample_time(twix_obj),
         constants.IOFields.FA_DIS: twix_utils.get_flipangle_dissolved(twix_obj),
@@ -507,25 +504,22 @@ def read_dis_mrd(
     data_dict = mrd_utils.get_gx_data(dataset, multi_echo)
     return {
         # RH: manual override from config, else header
+        # RH: getattr so configs without age/sex/height/weight fall back to header
         constants.IOFields.AGE: (
-            config.age
-            if config is not None and config.age
-            else mrd_utils.get_patient_age(header)
+            getattr(config, "age", None)
+            or mrd_utils.get_patient_age(header)
         ),
         constants.IOFields.SEX: (
-            config.sex
-            if config is not None and config.sex
-            else mrd_utils.get_patient_sex(header)
+            getattr(config, "sex", None)
+            or mrd_utils.get_patient_sex(header)
         ),
         constants.IOFields.HEIGHT: (
-            config.height
-            if config is not None and config.height
-            else mrd_utils.get_patient_height(header)
+            getattr(config, "height", None)
+            or mrd_utils.get_patient_height(header)
         ),
         constants.IOFields.WEIGHT: (
-            config.weight
-            if config is not None and config.weight
-            else mrd_utils.get_patient_weight(header)
+            getattr(config, "weight", None)
+            or mrd_utils.get_patient_weight(header)
         ),
         constants.IOFields.BANDWIDTH: np.nan,
         constants.IOFields.SAMPLE_TIME: mrd_utils.get_sample_time_gas_exchange(dataset),
@@ -748,6 +742,36 @@ def move_files(source_paths: list, destination_path: str) -> None:
         fname = os.path.basename(path)
         if os.path.isfile(path):
             shutil.move(path, os.path.join(destination_path, fname))
+
+
+# RH: one place for output folder name, "_osc" added when oscillation analysis is on
+def get_output_subfolder(
+    config: ml_collections.ConfigDict, method_subdir: str = ""
+) -> str:
+    """Get the per-subject output folder path.
+
+    Args:
+        config (ml_collections.ConfigDict): config dict.
+        method_subdir (str): optional normalization-method subfolder (ALL mode).
+
+    Returns:
+        <data_dir>/<output_folder>[/<method_subdir>], with "_osc" appended to
+        output_folder if oscillation analysis is on.
+    """
+    data_dir = str(getattr(config, "data_dir", "") or "").strip() or "."
+    folder = str(getattr(config, "output_folder", "") or "").strip() or "gx"
+    osc_recon = getattr(config, "osc_recon", None)
+    # RH: skip "_osc" if name already has "osc", to avoid e.g. gx_osc_..._osc
+    if (
+        osc_recon is not None
+        and getattr(osc_recon, "oscillation_analysis", False)
+        and "osc" not in folder.lower()
+    ):
+        folder = folder + "_osc"
+    # RH: method_subdir nests each method's outputs under the run folder (ALL mode)
+    if method_subdir:
+        return os.path.join(data_dir, folder, method_subdir)
+    return os.path.join(data_dir, folder)
 
 
 def check_real_number(input_data):

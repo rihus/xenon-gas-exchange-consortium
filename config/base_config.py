@@ -51,6 +51,7 @@ class Config(config_dict.ConfigDict):
         self.segmentation_key = constants.SegmentationKey.CNN_VENT.value
         self.manual_seg_filepath = ""
         # Choose NormalizationMethod from GLB_99 (default), GLB_FV, GLB_MA, THRESHOLD_MA
+        # RH: or ALL to run all four, each into its own subfolder
         self.vent_normalization_method = constants.NormalizationMethods.GLB_99
         # auto-generate if filepath missing or file not found
         self.auto_make_trachea_plus_lung_mask = True
@@ -65,10 +66,10 @@ class Config(config_dict.ConfigDict):
         self.vol_correction_key = constants.VolCorrectionKey.NONE.value
         self.corrected_lung_volume = "NA"
         # RH: optional manual overrides
-        self.age = 0 ## default 0 => read from header
-        self.sex = "" ## default "" => read from header: Specify "M" or "F"
-        self.height = 0.0 ## default 0.0 => read from header
-        self.weight = 0.0 ## default 0.0 => read from header
+        self.age = 0 ## default 0 (age in years) => read from header
+        self.sex = "" ## default "" (Specify "M" or "F") => read from header
+        self.height = 0.0 ## default 0.0 (Height in cm) => read from header
+        self.weight = 0.0 ## default 0.0 (Weight in Kg) => read from header
         self.dicom_proton_dir = ""
         self.multi_echo = False
         self.registration_key = constants.RegistrationKey.SKIP.value

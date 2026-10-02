@@ -180,6 +180,8 @@ def reconstruct_cs(
     end_time = time.time()
     logging.info("Execution time: {:.2f} seconds".format(end_time - start_time))
     image *= np.sqrt(1 / LL)
+    # RH: roll by -1 voxel on all axes to align with gridded (ROBERTSON) images
+    image = np.roll(image, (-1, -1, -1), axis=(0, 1, 2))
     return image
 
 
