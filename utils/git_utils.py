@@ -132,6 +132,16 @@ def _ahead_behind(repo_dir: str, left_ref: str, right_ref: str) -> Tuple[int, in
     return int(left), int(right)
 
 
+# RH: files the incoming commits change, to skip the warning for merge-only commits
+def _incoming_files(repo_dir: str, left_ref: str, right_ref: str) -> List[str]:
+    """Return files changed in right_ref since its merge base with left_ref."""
+    try:
+        out = _run_git(repo_dir, "diff", "--name-only", f"{left_ref}...{right_ref}")
+    except Exception:
+        return ["unknown"]  # cannot tell, so keep the warning
+    return [x for x in out.splitlines() if x.strip()]
+
+
 def _log_oneline(repo_dir: str, rev_range: str, n: int) -> str:
     """Return `git log --oneline <rev_range> -n<n>` output."""
     return _run_git(
@@ -225,7 +235,7 @@ def warn_git_status(
     --------
     - Compares HEAD against `compare_branch` (default: remote default branch like origin/main).
     - Emits WARNING (red) only when:
-        * you are BEHIND `compare_branch`, or
+        * you are BEHIND `compare_branch` and the incoming commits change files, or
         * `compare_branch` cannot be resolved.
     - Being AHEAD of `compare_branch` is INFO-only (no warning).
     - Shows incoming/outgoing commits in YELLOW when displayed.
@@ -289,6 +299,13 @@ def warn_git_status(
 
     if compare_branch:
         ahead, behind = _ahead_behind(repo_dir, "HEAD", compare_branch)
+
+        # RH: not behind if incoming commits change no files (e.g. PR merge commits)
+        if behind > 0 and not _incoming_files(repo_dir, "HEAD", compare_branch):
+            info_lines.append(
+                f"[git-check] {behind} incoming commit(s) from {compare_branch} change no files (ignored)."
+            )
+            behind = 0
 
         if behind == 0 and ahead == 0:
             info_lines.append(f"[git-check] Up to date with {compare_branch}")
