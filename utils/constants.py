@@ -323,11 +323,15 @@ class StatsIOFields(object):
     OSC_NEGATIVE_PCT = "osc_negative"
     KEY_RADIUS = "key_radius"
 
+    # RH: relative capillary blood volume (Vc) correction flag and corrected metrics
+    VC_CORRECTION = "vc_correction"
     OSC_DEFECT_PCT_CORR = "osc_defect_corr"
     OSC_LOW_PCT_CORR = "osc_low_corr"
     OSC_DEFECTLOW_PCT_CORR = "osc_defectlow_corr"
     OSC_HIGH_PCT_CORR = "osc_high_corr"
     OSC_MEAN_CORR = "osc_mean_corr"
+    OSC_STDDEV_CORR = "osc_stddev_corr"
+    OSC_COV_CORR = "osc_cov_corr"
     OSC_NEGATIVE_PCT_CORR = "osc_negative_corr"
 
 

@@ -1494,6 +1494,16 @@ class Subject(object):
                     constants.StatsIOFields.DISSOLVED_SNR: float(
                         metrics.snr(np.abs(self.image_dissolved), self.mask)[1]
                     ),
+                    # RH: always written (NA if off) so the csv header fits every row
+                    constants.StatsIOFields.VC_CORRECTION: self.config.osc_recon.vc_correction,
+                    constants.StatsIOFields.OSC_DEFECT_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_LOW_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_DEFECTLOW_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_HIGH_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_MEAN_CORR: "NA",
+                    constants.StatsIOFields.OSC_STDDEV_CORR: "NA",
+                    constants.StatsIOFields.OSC_COV_CORR: "NA",
+                    constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR: "NA",
                 }
             )
             if self.config.osc_recon.vc_correction:
@@ -1517,6 +1527,12 @@ class Subject(object):
                         ),
                         constants.StatsIOFields.OSC_MEAN_CORR: float(
                             metrics.mean(self.image_rbc_osc_corr, self.mask_rbc)
+                        ),
+                        constants.StatsIOFields.OSC_STDDEV_CORR: float(
+                            metrics.std(self.image_rbc_osc_corr, self.mask_rbc)
+                        ),
+                        constants.StatsIOFields.OSC_COV_CORR: float(
+                            metrics.cov(self.image_rbc_osc_corr, self.mask_rbc)
                         ),
                         constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR: metrics.negative_percentage(
                             self.image_rbc_osc_corr, self.mask_rbc
