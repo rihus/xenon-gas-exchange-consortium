@@ -60,7 +60,9 @@ class Subject(object):
         image_rbc (np.array): RBC image
         image_rbc2gas (np.array): RBC image normalized by gas-phase image
         image_rbc2gas_binned (np.array): binned image_rbc2gas
+        image_rbc2membrane (np.array): RBC image normalized by membrane image
         mask (np.array): thoracic cavity mask
+        mask_rbc2membrane (np.ndarray): mask_vent voxels with membrane signal above 0
         mask_vent (np.ndarray): thoracic cavity mask without ventilation defects
         membrane_hb_correction_factor (float): membrane hb correction scaling factor
         rbc_hb_correction_factor (float): rbc hb correction scaling factor
@@ -101,6 +103,7 @@ class Subject(object):
         self.image_rbc_norm = np.array([0.0])
         self.image_rbc2gas = np.array([0.0])
         self.image_rbc2gas_binned = np.array([0.0])
+        self.image_rbc2membrane = np.array([0.0])
         self.image_rbc_high = np.array([0.0])
         self.image_rbc_low = np.array([0.0])
         self.image_rbc_osc = np.array([0.0])
@@ -116,6 +119,7 @@ class Subject(object):
         self.mask = np.array([0.0])
         self.mask_vent = np.array([0.0])
         self.mask_rbc = np.array([0.0])
+        self.mask_rbc2membrane = np.array([0.0])
         self.n_dis_spikes_detected = 0.0
         self.n_gas_spikes_detected = 0.0
         self.rbc_m_ratio = 0.0
@@ -1102,6 +1106,17 @@ class Subject(object):
             * t2star_scale_factor_membrane
             * self.image_membrane2gas
         )
+        # RH: voxel-wise RBC:membrane ratio, same as abs(RBC)/abs(Barrier) in the CCHMC
+        # matlab pipeline (negatives set to 0, T2* corrected); gas image and flip angle
+        # scaling cancel out. Voxels without membrane signal (inf/nan ratio) are excluded.
+        self.mask_rbc2membrane = np.logical_and(
+            self.mask_vent, self.image_membrane2gas > 0
+        )
+        self.image_rbc2membrane = img_utils.divide_images(
+            image1=self.image_rbc2gas,
+            image2=self.image_membrane2gas,
+            mask=self.mask_rbc2membrane,
+        )
 
     def dissolved_binning(self):
         """Bin dissolved images to colormap bins."""
@@ -1310,6 +1325,19 @@ class Subject(object):
             # RH: heterogeneity metric
             constants.StatsIOFields.MEMBRANE_COV: float(
                 metrics.cov(self.image_membrane2gas, self.mask_vent)
+            ),
+            # RH: RBC:membrane ratio from imaging
+            constants.StatsIOFields.RBC2MEMBRANE_MEAN: float(
+                metrics.mean(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_MEDIAN: float(
+                metrics.median(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_STDDEV: float(
+                metrics.std(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_COV: float(
+                metrics.cov(self.image_rbc2membrane, self.mask_rbc2membrane)
             ),
             constants.StatsIOFields.ALVEOLAR_VOLUME: metrics.alveolar_volume(
                 self.image_gas_binned, self.mask, self.dict_dis[constants.IOFields.FOV]
@@ -2025,6 +2053,17 @@ class Subject(object):
             "tmp/membrane2gas.nii",
             self.dict_dis[constants.IOFields.FOV],
         )
+        # RH: continuous (unbinned) RBC:membrane ratio and its mask
+        io_utils.export_nii(
+            np.abs(self.image_rbc2membrane),
+            "tmp/rbc2membrane.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
+        io_utils.export_nii(
+            self.mask_rbc2membrane.astype(float),
+            "tmp/mask_rbc2membrane.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
         io_utils.export_nii(
             self.mask.astype(float),
             "tmp/mask_reg.nii",
@@ -2143,6 +2182,12 @@ class Subject(object):
             "tmp/rbc2gas.nii",
             "tmp/membrane2gas.nii",
             "tmp/mask_vent.nii",
+            # RH: RBC:membrane ratio from imaging + its mask
+            "tmp/rbc2membrane.nii",
+            "tmp/mask_rbc2membrane.nii",
+            # RH: RBC and membrane signal images (shown in the grayscale report), for figures
+            "tmp/rbc.nii",
+            "tmp/membrane.nii",
         )
 
         # move files

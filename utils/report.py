@@ -74,7 +74,13 @@ def format_dict(dict_stats: Dict[str, Any]) -> Dict[str, Any]:
         constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR,
     ]
     # list of variables to round to 3 decimal places
-    list_round_3 = [constants.StatsIOFields.RBC_M_RATIO]
+    list_round_3 = [
+        constants.StatsIOFields.RBC_M_RATIO,
+        # RH: RBC:membrane ratio from imaging
+        constants.StatsIOFields.RBC2MEMBRANE_MEAN,
+        constants.StatsIOFields.RBC2MEMBRANE_MEDIAN,
+        constants.StatsIOFields.RBC2MEMBRANE_STDDEV,
+    ]
     # list of variables to output to multiply by 100 for readabiltiy
     list_mult_100 = [
         constants.StatsIOFields.RBC_MEAN,

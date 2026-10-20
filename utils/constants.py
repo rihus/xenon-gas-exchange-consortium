@@ -304,6 +304,11 @@ class StatsIOFields(object):
     RBC_COV = "rbc_cov"
     MEMBRANE_COV = "membrane_cov"
     VENT_COV = "vent_cov"
+    # RH: RBC:membrane ratio from imaging
+    RBC2MEMBRANE_MEAN = "rbc2membrane_mean"
+    RBC2MEMBRANE_MEDIAN = "rbc2membrane_median"
+    RBC2MEMBRANE_STDDEV = "rbc2membrane_stddev"
+    RBC2MEMBRANE_COV = "rbc2membrane_cov"
     DLCO_EST = "dlco_est"
     KCO_EST = "kco_est"
     RDP_BA = "rdp_ba"
