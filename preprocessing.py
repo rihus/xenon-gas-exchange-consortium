@@ -148,11 +148,11 @@ def prepare_data_and_traj_keyhole(
     data_copy = data.copy()
     data = data.copy()
     data[:, 0:key_radius] = 0.0
-    normalization = (
-        np.mean(np.abs(data_copy[bin_indices, 0])) * 1 / np.abs(data_copy[:, 0])
-    )
-    data = data * np.mean(np.abs(data_copy[bin_indices, 0]))
-    data = np.divide(data, np.expand_dims(normalization, -1))
+    # RH: scale the outer k-space of every spoke so that its k0 matches the bin mean,
+    # mean(|k0_bin|) / |k0_i|; the old lines multiplied it by |k0_i| instead, which
+    # biased the maps low by ~60 % at |k0| ~ 0.25 (testing/osc_phantom/REPORT.md)
+    normalization = np.mean(np.abs(data_copy[bin_indices, 0])) / np.abs(data_copy[:, 0])
+    data = data * np.expand_dims(normalization, -1)
     data[bin_indices, 0:key_radius] = data_copy[bin_indices, 0:key_radius]
     data_flatten = np.delete(
         recon_utils.flatten_data(data), np.where(data.flatten() == 0.0), axis=0
