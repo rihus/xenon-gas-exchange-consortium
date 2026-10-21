@@ -547,7 +547,13 @@ def read_dis_mrd(
         constants.IOFields.SOFTWARE_VERSION: "NA",
         constants.IOFields.TE90: mrd_utils.get_TE90(header),
         constants.IOFields.TR: mrd_utils.get_TR_dissolved(header),
-        constants.IOFields.TRAJ: data_dict[constants.IOFields.TRAJ],
+        # RH: corrected trajectory for Duke-protocol Philips data (see mrd_utils)
+        constants.IOFields.TRAJ: mrd_utils.get_duke_protocol_traj(
+            header,
+            data_dict[constants.IOFields.TRAJ],
+            getattr(getattr(config, "recon", None), "traj_filepath", "")
+            or constants.DUKE_PROTOCOL_TRAJ_FILE,
+        ),
         constants.IOFields.PREP_PULSES: mrd_utils.get_prep_pulses(header),
     }
 

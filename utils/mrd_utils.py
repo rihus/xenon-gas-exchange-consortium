@@ -499,6 +499,64 @@ def get_TR_dissolved(header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader) ->
 	return (tr_gas_to_dissolved + tr_dissolved_to_gas) * 1e-3
 
 
+def get_duke_protocol_traj(
+	header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader,
+	traj: list,
+	traj_filepath: str,
+) -> list:
+	"""Replace the gas and dissolved trajectories with the corrected Duke-protocol one.
+
+	RH: Duke-protocol (DukeIPF) Philips data converted to MRD at 128 points/spoke has
+	its first samples placed too far out in k-space (ramp shape); traj_filepath holds
+	the corrected trajectory (n_projections, n_points, 3). It is used only if all of:
+	vendor is Philips, protocol name contains "DukeIPF", trajectory shape matches the
+	file exactly, and the spoke directions match (same Halton spiral ordering).
+	Otherwise the MRD trajectory is kept.
+
+	Args:
+		header (ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader): MRD header
+		traj (list): [gas trajectory, dissolved trajectory] from the MRD file
+		traj_filepath (str): path to the corrected trajectory .npy file
+	Returns:
+		[gas trajectory, dissolved trajectory]
+	"""
+	if get_system_vendor(header) != constants.SystemVendor.PHILIPS.value:
+		return traj
+	if "dukeipf" not in get_protocol_name(header).lower():
+		return traj
+	try:
+		traj_fixed = np.load(traj_filepath)
+	except (OSError, ValueError):
+		logging.warning(
+			"Duke-protocol trajectory file not found: {}. Keeping MRD trajectory.".format(
+				traj_filepath
+			)
+		)
+		return traj
+	traj_gas, traj_dis = (np.asarray(t) for t in traj)
+	if traj_gas.shape != traj_fixed.shape or traj_dis.shape != traj_fixed.shape:
+		logging.info(
+			"MRD trajectory shape {} != {} in {}. Keeping MRD trajectory.".format(
+				traj_dis.shape, traj_fixed.shape, traj_filepath
+			)
+		)
+		return traj
+
+	def spoke_dirs(t):
+		return t[:, -1] / np.linalg.norm(t[:, -1], axis=-1, keepdims=True)
+
+	match = np.mean(np.sum(spoke_dirs(traj_dis) * spoke_dirs(traj_fixed), axis=-1))
+	if match < 0.999:
+		logging.warning(
+			"Spoke directions do not match {} (mean dot {:.4f}). Keeping MRD trajectory.".format(
+				traj_filepath, match
+			)
+		)
+		return traj
+	logging.info("Using corrected Duke-protocol trajectory: {}".format(traj_filepath))
+	return [traj_fixed.copy(), traj_fixed.copy()]
+
+
 def get_gx_data(dataset: ismrmrd.hdf5.Dataset, multi_echo: bool) -> Dict[str, Any]:
 	"""Get the FID acquisition data from dixon MRD file.
 

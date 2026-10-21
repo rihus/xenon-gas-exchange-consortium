@@ -116,6 +116,8 @@ class Recon(object):
         kmax_factor: float, the fractional extent of kmax that is sampled (default=1)
         traj_type: str, the trajectory type
         traj_scaling_factor: str, scaling factor to apply to trajectories
+        traj_filepath: str, corrected trajectory .npy for Duke-protocol Philips MRD data
+            ("" = constants.DUKE_PROTOCOL_TRAJ_FILE; used only if shape and spokes match)
     """
 
     def __init__(self):
@@ -151,6 +153,7 @@ class Recon(object):
         # Will default to 1 when reading in trajectories, but may be specified instead
         # (use 0.903 for Halton Spiral Cincy data)
         self.traj_scaling_factor = "None"
+        self.traj_filepath = ""
 
 
 class OscillationRecon(object):

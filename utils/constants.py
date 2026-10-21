@@ -5,6 +5,8 @@ import enum
 import numpy as np
 
 FOVINFLATIONSCALE3D = 1000.0
+# RH: corrected trajectory for Duke-protocol (DukeIPF) Philips MRD data, 128 pts/spoke
+DUKE_PROTOCOL_TRAJ_FILE = "bin/trajs/traj_before_rescaling.npy"
 GRYOMAGNETIC_RATIO = 11.777  # MHz/T
 T2STAR_GAS = 1.8e-2  # seconds
 T2STAR_RBC_3T = 1.044575 * 1e-3  # seconds
