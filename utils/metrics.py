@@ -202,18 +202,51 @@ def GLI_volume(age: float, sex: str, height: float, volume_type: str = "frc") ->
 def get_bag_volume(fvc_volume: float) -> float:
     """
     Given FVC volume, calculate the bag volume as 20% of FVC,
-    rounded to the nearest 0.25 increment.
+    rounded to the nearest 0.25 increment, up to 1 L maximum.
 
     Args:
         fvc_volume (float): The FVC volume in liters.
 
     Returns:
-        float: Bag volume rounded to the nearest 0.25 increment.
+        float: Bag volume rounded to the nearest 0.25 increment, capped at 1 L.
     """
     bag_volume = 0.2 * fvc_volume
     # Round to the nearest 0.25
     bag_volume_rounded = round(bag_volume * 4) / 4.0
-    return bag_volume_rounded
+    # RH: cap at 1 L, the maximum bag volume
+    return min(bag_volume_rounded, 1.0)
+
+
+# RH: FRC + bag volume as target for volume correction when set to "GLI"
+def get_predicted_lung_volume(
+    patient_frc, bag_volume, age: float, sex: str, height: float
+) -> float:
+    """Get the expected lung volume at breath-hold as FRC + bag volume.
+
+    FRC and bag volume are used as given if numeric, otherwise predicted from GLI.
+
+    Args:
+        patient_frc: measured FRC in L, or non-numeric to use GLI-predicted FRC.
+        bag_volume: bag volume in L, or non-numeric to predict it from GLI FVC.
+        age: float, subject age in years.
+        sex: str, subject sex ("M" or "F").
+        height: float, subject height in cm.
+
+    Returns:
+        Expected lung volume in L. Returns np.nan if a GLI value is not available.
+    """
+    if isinstance(patient_frc, (int, float)):
+        frc = float(patient_frc)
+    else:
+        frc = GLI_volume(age, sex, height, volume_type="frc")
+
+    if isinstance(bag_volume, (int, float)):
+        bag = float(bag_volume)
+    else:
+        fvc = GLI_volume(age, sex, height, volume_type="fvc")
+        bag = np.nan if pd.isna(fvc) else get_bag_volume(fvc)
+
+    return frc + bag
 
 
 def process_date() -> str:

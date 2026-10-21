@@ -32,7 +32,7 @@ class Config(config_dict.ConfigDict):
         segmentation_key: str, the segmentation key (CNN_VENT, MANUAL)
         subject_id: str, the subject id
         vol_correction_key: str,lung volume correction key (NONE, RBC_AND_MEMBRANE)
-        corrected_lung_volume: float, target lung volume in L
+        corrected_lung_volume: float, target lung volume in L, or "GLI"
         age: float, manual subject age override in years (0 = read from header)
         sex: str, manual subject sex override "M"/"F" ("" = read from header)
         height: float, manual subject height override in cm (0 = read from header)
@@ -64,6 +64,7 @@ class Config(config_dict.ConfigDict):
         self.hb_correction_key = constants.HbCorrectionKey.NONE.value
         self.hb = 0.0
         self.vol_correction_key = constants.VolCorrectionKey.NONE.value
+        # RH: number in L, or "GLI" for FRC + bag volume (GLI-predicted if not set above)
         self.corrected_lung_volume = "NA"
         # RH: optional manual overrides
         self.age = 0 ## default 0 (age in years) => read from header

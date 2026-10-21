@@ -1038,6 +1038,26 @@ class Subject(object):
         if self.config.vol_correction_key != constants.VolCorrectionKey.NONE.value:
             if self.dict_stats["inflation"] > 0:
                 self.corrected_lung_volume = self.config.corrected_lung_volume
+                # RH: "GLI" sets target to FRC + bag volume, GLI-predicted if not in config
+                if str(self.corrected_lung_volume).strip().upper() == "GLI":
+                    self.corrected_lung_volume = metrics.get_predicted_lung_volume(
+                        self.config.patient_frc,
+                        self.config.bag_volume,
+                        self.dict_dis[constants.IOFields.AGE],
+                        self.dict_dis[constants.IOFields.SEX],
+                        self.dict_dis[constants.IOFields.HEIGHT],
+                    )
+                    if pd.isna(self.corrected_lung_volume):
+                        raise ValueError(
+                            "GLI lung volume not available: check age, sex and height,"
+                            " or set patient_frc and bag_volume."
+                        )
+                    self.corrected_lung_volume = round(
+                        float(self.corrected_lung_volume), 2
+                    )
+                    logging.info(
+                        f"Volume correction target (GLI) = {self.corrected_lung_volume} L"
+                    )
                 # get volume correction scaling factors
 
                 (
