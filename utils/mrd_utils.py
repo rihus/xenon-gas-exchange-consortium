@@ -485,8 +485,17 @@ def get_TR_dissolved(header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader) ->
 	Returns:
 		TR in seconds (float)
 	"""
-	tr_gas_to_dissolved = header.sequenceParameters.TR[0]
-	tr_dissolved_to_gas = header.sequenceParameters.TR[1]
+	tr = list(header.sequenceParameters.TR)
+	# RH: philips-to-mrd converter writes [TR * n_contrasts, ..., TR], i.e. TR[0] is
+	# already the dissolved-to-dissolved time (e.g. Duke [8.48, 16.96, 4.24] = 2 x 4.24 ms,
+	# CPIR [15, 15, 5] = 3 x 5 ms; checked against .sin/.list). Summing TR[0] + TR[1]
+	# made the k0 time base 2-3x too slow, so the bandpass missed the cardiac peak.
+	if len(tr) >= 3 and tr[-1] > 0:
+		n_contrasts = tr[0] / tr[-1]
+		if n_contrasts >= 2 and abs(n_contrasts - round(n_contrasts)) < 1e-3:
+			return tr[0] * 1e-3
+	tr_gas_to_dissolved = tr[0]
+	tr_dissolved_to_gas = tr[1]
 	return (tr_gas_to_dissolved + tr_dissolved_to_gas) * 1e-3
 
 
