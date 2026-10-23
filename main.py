@@ -56,12 +56,59 @@ def get_vent_methods(config: base_config.Config) -> list:
     return methods
 
 
-def run_analysis(subject: Subject, recon_osc: bool):
+# RH: attributes set by Subject.reconstruction_rbc_oscillation, cached across methods
+OSC_RECON_FIELDS = (
+    "data_rbc_k0",
+    "high_indices",
+    "low_indices",
+    "rbc_m_ratio_high",
+    "rbc_m_ratio_low",
+    "key_radius",
+    "image_dissolved_high",
+    "image_dissolved_low",
+    "data_dissolved",
+)
+
+
+def reconstruct_rbc_oscillation_cached(subject: Subject, osc_cache: dict):
+    """Reconstruct the RBC oscillation images, or reuse them if the inputs match.
+
+    RH: the keyhole recon does not depend on the ventilation normalization method,
+    so in ALL mode it only needs to run once per subject and correction setting.
+
+    Args:
+        subject (Subject): subject after Hb and volume correction
+        osc_cache (dict): cache shared across methods, or None to always reconstruct
+    """
+    if osc_cache is None:
+        subject.reconstruction_rbc_oscillation()
+        return
+    inputs = (subject.rbc_m_ratio, subject.data_gas, subject.data_dissolved)
+    cached = osc_cache.get("inputs")
+    if (
+        cached is not None
+        and cached[0] == inputs[0]
+        and np.array_equal(cached[1], inputs[1])
+        and np.array_equal(cached[2], inputs[2])
+    ):
+        logging.info("Reusing RBC oscillation keyhole reconstruction")
+        for field in OSC_RECON_FIELDS:
+            setattr(subject, field, copy.deepcopy(osc_cache[field]))
+        return
+    # copy inputs first, since the cs keyhole recon scales data_dissolved in place
+    osc_cache["inputs"] = copy.deepcopy(inputs)
+    subject.reconstruction_rbc_oscillation()
+    for field in OSC_RECON_FIELDS:
+        osc_cache[field] = copy.deepcopy(getattr(subject, field))
+
+
+def run_analysis(subject: Subject, recon_osc: bool, osc_cache: dict = None):
     """Run the steps from gas binning to moving output files.
 
     Args:
         subject (Subject): subject after bias field correction (or mat read-in)
         recon_osc (bool): whether to reconstruct the RBC oscillation images
+        osc_cache (dict): keyhole recon cache shared across methods, or None
     """
     subject.gas_binning()
     subject.dixon_decomposition()
@@ -71,7 +118,7 @@ def run_analysis(subject: Subject, recon_osc: bool):
     subject.dissolved_binning()
     if subject.config.osc_recon.oscillation_analysis:
         if recon_osc:
-            subject.reconstruction_rbc_oscillation()
+            reconstruct_rbc_oscillation_cached(subject, osc_cache)
         subject.oscillation_analysis()
         subject.oscillation_binning()
     subject.get_statistics()
@@ -96,13 +143,14 @@ def run_vent_methods(subject: Subject, config: base_config.Config, recon_osc: bo
     if config.vent_normalization_method != constants.NormalizationMethods.ALL:
         run_analysis(subject, recon_osc)
         return
+    osc_cache = {}
     for method in get_vent_methods(config):
         logging.info("ALL mode: running normalization method %s", method)
         # RH: fresh copy per method, since later steps modify subject data in place
         subject_method = copy.deepcopy(subject)
         subject_method.config.vent_normalization_method = method
         subject_method.method_subdir = method
-        run_analysis(subject_method, recon_osc)
+        run_analysis(subject_method, recon_osc, osc_cache)
 
 
 def gx_mapping_reconstruction(config: base_config.Config):
@@ -110,6 +158,25 @@ def gx_mapping_reconstruction(config: base_config.Config):
 
     Args:
         config (config_dict.ConfigDict): config dict
+    """
+    subject = reconstruct_subject(config)
+    # RH: per-method steps, looped over all methods in ALL mode
+    run_vent_methods(subject, config, recon_osc=True)
+    subject.check_git_version()
+    logging.info("Complete")
+
+
+def reconstruct_subject(config: base_config.Config) -> Subject:
+    """Read raw data and run the steps up to bias field correction.
+
+    RH: split out so a batch runner can reconstruct once and run several correction
+    variants from copies of the subject.
+
+    Args:
+        config (config_dict.ConfigDict): config dict
+
+    Returns:
+        Subject after bias field correction.
     """
     subject = Subject(config=config)
     subject.clear_temp_file()
@@ -146,10 +213,7 @@ def gx_mapping_reconstruction(config: base_config.Config):
     subject.segmentation()
     subject.registration()
     subject.biasfield_correction()
-    # RH: per-method steps, looped over all methods in ALL mode
-    run_vent_methods(subject, config, recon_osc=True)
-    subject.check_git_version()
-    logging.info("Complete")
+    return subject
 
 
 def gx_mapping_readin(config: base_config.Config):
