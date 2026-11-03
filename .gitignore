@@ -30,6 +30,9 @@ test.jpg
 **.gz
 **.h5
 **.mat
+# RH: batch and test run logs
+logs/
+
 # tmp files
 tmp/*
 !tmp/.gitkeep
