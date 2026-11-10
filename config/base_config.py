@@ -166,11 +166,23 @@ class OscillationRecon(object):
                 If set to 0, this will be calculated automatically, such that the
                 key radius is 6.8% of the k-max.
             vc_correction: bool, whether to correction oscillation images for relative capillary blood volume.
+            adaptive_bandpass: bool, set the k0 bandpass from the cardiac frequency f0 found
+                in the data (False = fixed 0.5-2.5 Hz).
+            bandpass_low_factor: float, lower band limit as a multiple of f0.
+            bandpass_high_factor: float, upper band limit as a multiple of f0.
+            bandpass_min_quality: float, spectral quality of f0 (peak / background) below
+                which the fixed band is used and a warning is logged.
         """
         self.oscillation_analysis = False
 
         # Keyhole Radius
         self.key_radius = 0
+
+        # RH: adaptive bandpass for the k0 binning, off by default
+        self.adaptive_bandpass = False
+        self.bandpass_low_factor = 0.5
+        self.bandpass_high_factor = 2.5
+        self.bandpass_min_quality = 20.0
 
         # Correction for relative capillary blood volume
         self.vc_correction = False

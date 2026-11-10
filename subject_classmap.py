@@ -595,6 +595,7 @@ class Subject(object):
 
     def reconstruction_rbc_oscillation(self):
         """Reconstruct the RBC oscillation image."""
+        osc_cfg = getattr(self.config, "osc_recon", None)
         # bin rbc oscillations to high and low indices
         (
             self.data_rbc_k0,
@@ -607,6 +608,12 @@ class Subject(object):
             data_dissolved=self.data_dissolved,
             rbc_m_ratio=self.rbc_m_ratio,
             TR=self.dict_dis[constants.IOFields.TR],
+            # RH: getattr, since subject configs written before this option have no
+            # such attributes; the defaults keep the fixed 0.5-2.5 Hz band
+            adaptive_bandpass=getattr(osc_cfg, "adaptive_bandpass", False),
+            low_factor=getattr(osc_cfg, "bandpass_low_factor", 0.5),
+            high_factor=getattr(osc_cfg, "bandpass_high_factor", 2.5),
+            min_quality=getattr(osc_cfg, "bandpass_min_quality", 20.0),
         )
 
         if (

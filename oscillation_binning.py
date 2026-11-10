@@ -1,5 +1,6 @@
 """Bin dissolved phase data into high and low signal bins."""
 
+import logging
 from typing import Literal, Tuple
 
 import matplotlib
@@ -18,6 +19,10 @@ def bin_rbc_oscillations(
     TR: float,
     rbc_m_ratio: float,
     method: str = constants.BinningMethods.BANDPASS,
+    adaptive_bandpass: bool = False,
+    low_factor: float = 0.5,
+    high_factor: float = 2.5,
+    min_quality: float = 20.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
     """Bin dissolved phase data into high and low signal bins.
 
@@ -27,6 +32,11 @@ def bin_rbc_oscillations(
         TR: repetition time in seconds
         rbc_m_ratio: RBC:m ratio
         method: method to use for binning
+        adaptive_bandpass: if True, set the bandpass from the cardiac frequency f0
+            of the data instead of the fixed 0.5-2.5 Hz
+        low_factor: lower band limit as a multiple of f0
+        high_factor: upper band limit as a multiple of f0
+        min_quality: below this spectral quality of f0 the fixed band is used
     Returns:
         Tuple of detrendend data, high and low signal indices respectively.
     """
@@ -72,8 +82,30 @@ def bin_rbc_oscillations(
         plt.close()
 
         # apply bandpass filter
+        lowcut, highcut = 0.5, 2.5
+        if adaptive_bandpass:
+            # RH: band from the data, [low_factor, high_factor] x cardiac frequency.
+            # 0.5-2.5 x f0 keeps the 2nd harmonic; f0 +- 50 % shifted the bins on
+            # real scans (logs/adaptive_bandpass/LOG.md)
+            f0, quality = signal_utils.estimate_cardiac_frequency(
+                data_rbc_k0_proc, fs=1 / TR
+            )
+            if np.isfinite(quality) and quality >= min_quality:
+                lowcut = low_factor * f0
+                highcut = min(high_factor * f0, 0.45 / TR)
+                logging.info(
+                    "Adaptive bandpass: f0 %.2f Hz (%.0f bpm), quality %.0f, "
+                    "band %.2f-%.2f Hz",
+                    f0, 60 * f0, quality, lowcut, highcut,
+                )
+            else:
+                logging.warning(
+                    "Adaptive bandpass: no clear cardiac peak (f0 %.2f Hz, quality "
+                    "%.1f < %.1f). Using the fixed 0.5-2.5 Hz band.",
+                    f0, quality, min_quality,
+                )
         data_rbc_k0_proc = signal_utils.bandpass(
-            data=data_rbc_k0_proc, lowcut=0.5, highcut=2.5, fs=1 / TR
+            data=data_rbc_k0_proc, lowcut=lowcut, highcut=highcut, fs=1 / TR
         )
 
         plt.figure(figsize=(10, 6))
