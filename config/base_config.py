@@ -117,7 +117,8 @@ class Recon(object):
         traj_type: str, the trajectory type
         traj_scaling_factor: str, scaling factor to apply to trajectories
         traj_filepath: str, corrected trajectory .npy for Duke-protocol Philips MRD data
-            ("" = constants.DUKE_PROTOCOL_TRAJ_FILE; used only if shape and spokes match)
+            ("" = constants.DUKE_PROTOCOL_TRAJ_FILES for the readout length;
+            used only if shape and spokes match)
     """
 
     def __init__(self):

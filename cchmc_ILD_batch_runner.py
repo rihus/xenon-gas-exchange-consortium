@@ -172,7 +172,9 @@ def get_overrides(config, path: str) -> dict:
         key, value = override.split("=", 1)
         old = config
         for name in key.split("."):
-            old = getattr(old, name)
+            # RH: subject configs define their own Recon without newer base fields
+            # (e.g. traj_filepath); a missing last field is treated as unset
+            old = getattr(old, name, None)
         if old in (None, constants.NONE):
             # field is unset ("None") in the config: take a number if it is one
             try:

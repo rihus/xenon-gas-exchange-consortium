@@ -506,9 +506,10 @@ def get_duke_protocol_traj(
 ) -> list:
 	"""Replace the gas and dissolved trajectories with the corrected Duke-protocol one.
 
-	RH: Duke-protocol (DukeIPF) Philips data converted to MRD at 128 points/spoke has
-	its first samples placed too far out in k-space (ramp shape); traj_filepath holds
-	the corrected trajectory (n_projections, n_points, 3). It is used only if all of:
+	RH: Duke-protocol (DukeIPF) Philips MRD trajectories were built with the converter's
+	1.25-sample gradient delay; traj_filepath holds the corrected trajectory
+	(n_projections, n_points, 3), one file per readout length (constants.
+	DUKE_PROTOCOL_TRAJ_FILES: 64 and 128 points, 13 Nov 2026). It is used only if all of:
 	vendor is Philips, protocol name contains "DukeIPF", trajectory shape matches the
 	file exactly, and the spoke directions match (same Halton spiral ordering).
 	Otherwise the MRD trajectory is kept.
