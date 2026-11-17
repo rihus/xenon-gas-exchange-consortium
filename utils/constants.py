@@ -6,13 +6,12 @@ import numpy as np
 
 FOVINFLATIONSCALE3D = 1000.0
 # RH: corrected trajectories for Duke-protocol (DukeIPF) Philips MRD data, by points per spoke.
-# 64 pts (10 us dwell): converter radial formula at gr_delay 0.98 samples, from the Duke-vs-CCHMC
-# delay study (13 Nov 2026, anchored on CCHMC 0.36).
-# RH: 128 pts (5 us dwell) back to Duke's traj_before_rescaling.npy (~2.9 samples) on 16 Nov 2026:
-# the Xe bag phantom (940 +/- 20 mL) reads 947 mL with it and 911 mL with the 2.2-sample file of
-# 13 Nov, which stays in bin/trajs for reference.
+# 128 pts (5 us dwell): Duke's traj_before_rescaling.npy (~2.9 samples). The Xe bag phantom
+# (940 +/- 20 mL) reads 947 mL with it and 911 mL with the 2.2-sample file of 13 Nov 2026.
+# 64 pts (10 us dwell): no entry, so the MRD trajectory (converter gr_delay 1.25 samples) is kept.
+# The bag delay carried over in time gives 1.21-1.24; the 0.98 file of 13 Nov 2026 was anchored on
+# CCHMC 0.36, which the bag put in doubt. Both 13 Nov files stay in bin/trajs for reference.
 DUKE_PROTOCOL_TRAJ_FILES = {
-    64: "bin/trajs/traj_duke64_d0.98.npy",
     128: "bin/trajs/traj_before_rescaling.npy",
 }
 GRYOMAGNETIC_RATIO = 11.777  # MHz/T

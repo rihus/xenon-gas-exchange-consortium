@@ -509,10 +509,10 @@ def get_duke_protocol_traj(
 	RH: Duke-protocol (DukeIPF) Philips MRD trajectories were built with the converter's
 	1.25-sample gradient delay; traj_filepath holds the corrected trajectory
 	(n_projections, n_points, 3), one file per readout length (constants.
-	DUKE_PROTOCOL_TRAJ_FILES: 64 and 128 points). It is used only if all of:
-	vendor is Philips, protocol name contains "DukeIPF", trajectory shape matches the
-	file exactly, and the spoke directions match (same Halton spiral ordering).
-	Otherwise the MRD trajectory is kept.
+	DUKE_PROTOCOL_TRAJ_FILES: 128 points only; 64 points keeps the MRD trajectory).
+	It is used only if all of: vendor is Philips, protocol name contains "DukeIPF",
+	trajectory shape matches the file exactly, and the spoke directions match (same
+	Halton spiral ordering). Otherwise the MRD trajectory is kept.
 
 	Args:
 		header (ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader): MRD header
@@ -524,6 +524,9 @@ def get_duke_protocol_traj(
 	if get_system_vendor(header) != constants.SystemVendor.PHILIPS.value:
 		return traj
 	if "dukeipf" not in get_protocol_name(header).lower():
+		return traj
+	# RH: no file for this readout length (64 points): keep the MRD trajectory
+	if not traj_filepath:
 		return traj
 	try:
 		traj_fixed = np.load(traj_filepath)
