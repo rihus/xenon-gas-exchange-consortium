@@ -32,7 +32,7 @@ class Config(config_dict.ConfigDict):
         segmentation_key: str, the segmentation key (CNN_VENT, MANUAL)
         subject_id: str, the subject id
         vol_correction_key: str,lung volume correction key (NONE, RBC_AND_MEMBRANE)
-        corrected_lung_volume: float, target lung volume in L
+        corrected_lung_volume: float, target lung volume in L, or "GLI"
         age: float, manual subject age override in years (0 = read from header)
         sex: str, manual subject sex override "M"/"F" ("" = read from header)
         height: float, manual subject height override in cm (0 = read from header)
@@ -64,6 +64,7 @@ class Config(config_dict.ConfigDict):
         self.hb_correction_key = constants.HbCorrectionKey.NONE.value
         self.hb = 0.0
         self.vol_correction_key = constants.VolCorrectionKey.NONE.value
+        # RH: number in L, or "GLI" for FRC + bag volume (GLI-predicted if not set above)
         self.corrected_lung_volume = "NA"
         # RH: optional manual overrides
         self.age = 0 ## default 0 (age in years) => read from header
@@ -112,8 +113,12 @@ class Recon(object):
         n_skip_end: int, the number of frames to skip at the end
         recon_size: int, size to which the images are reconstructed
         matrix_size: int, the final matrix size
+        kmax_factor: float, the fractional extent of kmax that is sampled (default=1)
         traj_type: str, the trajectory type
         traj_scaling_factor: str, scaling factor to apply to trajectories
+        traj_filepath: str, corrected trajectory .npy for Duke-protocol Philips MRD data
+            ("" = constants.DUKE_PROTOCOL_TRAJ_FILES for the readout length;
+            used only if shape and spokes match)
     """
 
     def __init__(self):
@@ -129,6 +134,7 @@ class Recon(object):
         # Reconstruction and matrix sizes
         self.recon_size = 64
         self.matrix_size = 128
+        self.kmax_factor = 1.0
 
         # Additional options
         self.recon_proton = True
@@ -148,6 +154,7 @@ class Recon(object):
         # Will default to 1 when reading in trajectories, but may be specified instead
         # (use 0.903 for Halton Spiral Cincy data)
         self.traj_scaling_factor = "None"
+        self.traj_filepath = ""
 
 
 class OscillationRecon(object):
@@ -155,14 +162,28 @@ class OscillationRecon(object):
         """Initialize the oscillation reconstruction parameters.
 
         Attributes:
-            oscillation_analysis: bool, whether to perform oscillation imaging analysis
-            key_radius_pct: int, percentage of points used to recon the keyhole image
-            vc_correction: bool, whether to correction oscillation images for relative capillary blood volume
+            oscillation_analysis: bool, whether to perform oscillation imaging analysis.
+            key_radius: int, points per radial spoke used to define the center of the keyhole image.
+                If set to 0, this will be calculated automatically, such that the
+                key radius is 6.8% of the k-max.
+            vc_correction: bool, whether to correction oscillation images for relative capillary blood volume.
+            adaptive_bandpass: bool, set the k0 bandpass from the cardiac frequency f0 found
+                in the data (False = fixed 0.5-2.5 Hz).
+            bandpass_low_factor: float, lower band limit as a multiple of f0.
+            bandpass_high_factor: float, upper band limit as a multiple of f0.
+            bandpass_min_quality: float, spectral quality of f0 (peak / background) below
+                which the fixed band is used and a warning is logged.
         """
         self.oscillation_analysis = False
 
         # Keyhole Radius
-        self.key_radius_pct = 14
+        self.key_radius = 0
+
+        # RH: adaptive bandpass for the k0 binning, off by default
+        self.adaptive_bandpass = False
+        self.bandpass_low_factor = 0.5
+        self.bandpass_high_factor = 2.5
+        self.bandpass_min_quality = 20.0
 
         # Correction for relative capillary blood volume
         self.vc_correction = False

@@ -319,6 +319,42 @@ def bandpass(data: np.ndarray, lowcut: float, highcut: float, fs: float) -> np.n
     return np.array(signal.sosfiltfilt(sos, data))
 
 
+def estimate_cardiac_frequency(
+    data: np.ndarray,
+    fs: float,
+    f_search: Tuple[float, float] = (0.6, 3.5),
+    pad: int = 8,
+) -> Tuple[float, float]:
+    """Find the main (cardiac) frequency of the detrended RBC k0 signal.
+
+    RH: used to set the bandpass from the data instead of the fixed 0.5-2.5 Hz
+    (tests in misc_py_scripts/adaptive_bandpass and logs/adaptive_bandpass/LOG.md).
+
+    Args:
+        data (np.ndarray): 1-D smoothed and detrended RBC k0 data.
+        fs (float): sampling frequency in Hz.
+        f_search (tuple): search range in Hz (0.6-3.5 Hz = 36-210 bpm).
+        pad (int): zero-padding factor of the FFT.
+    Returns:
+        Tuple of the frequency in Hz of the largest spectral peak in f_search, and
+        its quality: peak power / median power in f_search, with +- 2 resolution
+        cells around the peak left out. Noise alone gives about 9 (95 % below 21).
+    """
+    x = np.asarray(data, dtype=float)
+    x = x - np.mean(x)
+    n = x.size
+    # Hann window lowers the leakage of the residual trend into the search range
+    spec = np.abs(np.fft.rfft(x * np.hanning(n), n * pad)) ** 2
+    freq = np.fft.rfftfreq(n * pad, 1.0 / fs)
+    sel = (freq >= f_search[0]) & (freq <= f_search[1])
+    f_sel, p_sel = freq[sel], spec[sel]
+    i0 = int(np.argmax(p_sel))
+    f0 = float(f_sel[i0])
+    background = p_sel[np.abs(f_sel - f0) > 2 * fs / n]
+    quality = float(p_sel[i0] / np.median(background)) if background.size else np.nan
+    return f0, quality
+
+
 def lowpass(data: np.ndarray, highcut: float, fs: float) -> np.ndarray:
     """Bandpass filter.
 

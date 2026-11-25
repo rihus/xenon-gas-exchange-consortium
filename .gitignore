@@ -30,6 +30,11 @@ test.jpg
 **.gz
 **.h5
 **.mat
+# RH: batch and test run logs
+logs/
+# RH: local working plan, not for the repo
+improvement_plan.md
+
 # tmp files
 tmp/*
 !tmp/.gitkeep

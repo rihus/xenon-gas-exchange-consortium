@@ -60,7 +60,9 @@ class Subject(object):
         image_rbc (np.array): RBC image
         image_rbc2gas (np.array): RBC image normalized by gas-phase image
         image_rbc2gas_binned (np.array): binned image_rbc2gas
+        image_rbc2membrane (np.array): RBC image normalized by membrane image
         mask (np.array): thoracic cavity mask
+        mask_rbc2membrane (np.ndarray): mask_vent voxels with membrane signal above 0
         mask_vent (np.ndarray): thoracic cavity mask without ventilation defects
         membrane_hb_correction_factor (float): membrane hb correction scaling factor
         rbc_hb_correction_factor (float): rbc hb correction scaling factor
@@ -101,6 +103,7 @@ class Subject(object):
         self.image_rbc_norm = np.array([0.0])
         self.image_rbc2gas = np.array([0.0])
         self.image_rbc2gas_binned = np.array([0.0])
+        self.image_rbc2membrane = np.array([0.0])
         self.image_rbc_high = np.array([0.0])
         self.image_rbc_low = np.array([0.0])
         self.image_rbc_osc = np.array([0.0])
@@ -116,6 +119,7 @@ class Subject(object):
         self.mask = np.array([0.0])
         self.mask_vent = np.array([0.0])
         self.mask_rbc = np.array([0.0])
+        self.mask_rbc2membrane = np.array([0.0])
         self.n_dis_spikes_detected = 0.0
         self.n_gas_spikes_detected = 0.0
         self.rbc_m_ratio = 0.0
@@ -591,6 +595,7 @@ class Subject(object):
 
     def reconstruction_rbc_oscillation(self):
         """Reconstruct the RBC oscillation image."""
+        osc_cfg = getattr(self.config, "osc_recon", None)
         # bin rbc oscillations to high and low indices
         (
             self.data_rbc_k0,
@@ -603,15 +608,36 @@ class Subject(object):
             data_dissolved=self.data_dissolved,
             rbc_m_ratio=self.rbc_m_ratio,
             TR=self.dict_dis[constants.IOFields.TR],
+            # RH: getattr, since subject configs written before this option have no
+            # such attributes; the defaults keep the fixed 0.5-2.5 Hz band
+            adaptive_bandpass=getattr(osc_cfg, "adaptive_bandpass", False),
+            low_factor=getattr(osc_cfg, "bandpass_low_factor", 0.5),
+            high_factor=getattr(osc_cfg, "bandpass_high_factor", 2.5),
+            min_quality=getattr(osc_cfg, "bandpass_min_quality", 20.0),
         )
-        # calculate the key radius and normalize
-        self.key_radius = int(
-            np.ceil(
-                self.data_dissolved.shape[1]
-                * self.config.osc_recon.key_radius_pct
-                / 100
+
+        if (
+            self.config is not None
+            and hasattr(self.config.osc_recon, "key_radius")
+            and self.config.osc_recon.key_radius > 0
+        ):
+            self.key_radius = self.config.osc_recon.key_radius
+        else:
+            logging.info(
+                "Key radius not specified in config. Calculating automatically."
             )
-        )
+            if self.config is not None and hasattr(self.config.recon, "kmax_factor"):
+                kmax_factor = self.config.recon.kmax_factor
+            else:
+                logging.info("Kmax sampling factor not specified. Default to 1.")
+                kmax_factor = 1
+            self.key_radius = recon_utils.calculate_key_radius(
+                self.dict_dis[constants.IOFields.SAMPLE_TIME],
+                self.dict_dis[constants.IOFields.FIDS_DIS].shape[1],
+                self.dict_dis[constants.IOFields.RAMP_TIME] * (10**-6),
+                kmax_factor,
+            )
+
         normalization = np.abs(self.data_gas[:, 0])
         data_dissolved_norm = np.divide(
             self.data_dissolved, np.expand_dims(normalization, -1)
@@ -1034,6 +1060,26 @@ class Subject(object):
         if self.config.vol_correction_key != constants.VolCorrectionKey.NONE.value:
             if self.dict_stats["inflation"] > 0:
                 self.corrected_lung_volume = self.config.corrected_lung_volume
+                # RH: "GLI" sets target to FRC + bag volume, GLI-predicted if not in config
+                if str(self.corrected_lung_volume).strip().upper() == "GLI":
+                    self.corrected_lung_volume = metrics.get_predicted_lung_volume(
+                        self.config.patient_frc,
+                        self.config.bag_volume,
+                        self.dict_dis[constants.IOFields.AGE],
+                        self.dict_dis[constants.IOFields.SEX],
+                        self.dict_dis[constants.IOFields.HEIGHT],
+                    )
+                    if pd.isna(self.corrected_lung_volume):
+                        raise ValueError(
+                            "GLI lung volume not available: check age, sex and height,"
+                            " or set patient_frc and bag_volume."
+                        )
+                    self.corrected_lung_volume = round(
+                        float(self.corrected_lung_volume), 2
+                    )
+                    logging.info(
+                        f"Volume correction target (GLI) = {self.corrected_lung_volume} L"
+                    )
                 # get volume correction scaling factors
 
                 (
@@ -1101,6 +1147,17 @@ class Subject(object):
             flip_angle_scale_factor
             * t2star_scale_factor_membrane
             * self.image_membrane2gas
+        )
+        # RH: voxel-wise RBC:membrane ratio, same as abs(RBC)/abs(Barrier) in the CCHMC
+        # matlab pipeline (negatives set to 0, T2* corrected); gas image and flip angle
+        # scaling cancel out. Voxels without membrane signal (inf/nan ratio) are excluded.
+        self.mask_rbc2membrane = np.logical_and(
+            self.mask_vent, self.image_membrane2gas > 0
+        )
+        self.image_rbc2membrane = img_utils.divide_images(
+            image1=self.image_rbc2gas,
+            image2=self.image_membrane2gas,
+            mask=self.mask_rbc2membrane,
         )
 
     def dissolved_binning(self):
@@ -1311,6 +1368,19 @@ class Subject(object):
             constants.StatsIOFields.MEMBRANE_COV: float(
                 metrics.cov(self.image_membrane2gas, self.mask_vent)
             ),
+            # RH: RBC:membrane ratio from imaging
+            constants.StatsIOFields.RBC2MEMBRANE_MEAN: float(
+                metrics.mean(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_MEDIAN: float(
+                metrics.median(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_STDDEV: float(
+                metrics.std(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
+            constants.StatsIOFields.RBC2MEMBRANE_COV: float(
+                metrics.cov(self.image_rbc2membrane, self.mask_rbc2membrane)
+            ),
             constants.StatsIOFields.ALVEOLAR_VOLUME: metrics.alveolar_volume(
                 self.image_gas_binned, self.mask, self.dict_dis[constants.IOFields.FOV]
             ),
@@ -1494,6 +1564,16 @@ class Subject(object):
                     constants.StatsIOFields.DISSOLVED_SNR: float(
                         metrics.snr(np.abs(self.image_dissolved), self.mask)[1]
                     ),
+                    # RH: always written (NA if off) so the csv header fits every row
+                    constants.StatsIOFields.VC_CORRECTION: self.config.osc_recon.vc_correction,
+                    constants.StatsIOFields.OSC_DEFECT_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_LOW_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_DEFECTLOW_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_HIGH_PCT_CORR: "NA",
+                    constants.StatsIOFields.OSC_MEAN_CORR: "NA",
+                    constants.StatsIOFields.OSC_STDDEV_CORR: "NA",
+                    constants.StatsIOFields.OSC_COV_CORR: "NA",
+                    constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR: "NA",
                 }
             )
             if self.config.osc_recon.vc_correction:
@@ -1517,6 +1597,12 @@ class Subject(object):
                         ),
                         constants.StatsIOFields.OSC_MEAN_CORR: float(
                             metrics.mean(self.image_rbc_osc_corr, self.mask_rbc)
+                        ),
+                        constants.StatsIOFields.OSC_STDDEV_CORR: float(
+                            metrics.std(self.image_rbc_osc_corr, self.mask_rbc)
+                        ),
+                        constants.StatsIOFields.OSC_COV_CORR: float(
+                            metrics.cov(self.image_rbc_osc_corr, self.mask_rbc)
                         ),
                         constants.StatsIOFields.OSC_NEGATIVE_PCT_CORR: metrics.negative_percentage(
                             self.image_rbc_osc_corr, self.mask_rbc
@@ -1601,7 +1687,8 @@ class Subject(object):
             constants.IOFields.SEX: self.dict_dis[constants.IOFields.SEX],
             constants.IOFields.HEIGHT: self.dict_dis[constants.IOFields.HEIGHT],
             constants.IOFields.WEIGHT: self.dict_dis[constants.IOFields.WEIGHT],
-            constants.IOFields.BMI: self.dict_dis[constants.IOFields.WEIGHT]/((self.dict_dis[constants.IOFields.HEIGHT]/100)**2),
+            constants.IOFields.BMI: self.dict_dis[constants.IOFields.WEIGHT]
+            / ((self.dict_dis[constants.IOFields.HEIGHT] / 100) ** 2),
             constants.IOFields.VENT_NORMALIZATION_METHOD: self.config.vent_normalization_method,
         }
         return self.dict_info
@@ -2009,6 +2096,17 @@ class Subject(object):
             "tmp/membrane2gas.nii",
             self.dict_dis[constants.IOFields.FOV],
         )
+        # RH: continuous (unbinned) RBC:membrane ratio and its mask
+        io_utils.export_nii(
+            np.abs(self.image_rbc2membrane),
+            "tmp/rbc2membrane.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
+        io_utils.export_nii(
+            self.mask_rbc2membrane.astype(float),
+            "tmp/mask_rbc2membrane.nii",
+            self.dict_dis[constants.IOFields.FOV],
+        )
         io_utils.export_nii(
             self.mask.astype(float),
             "tmp/mask_reg.nii",
@@ -2127,6 +2225,12 @@ class Subject(object):
             "tmp/rbc2gas.nii",
             "tmp/membrane2gas.nii",
             "tmp/mask_vent.nii",
+            # RH: RBC:membrane ratio from imaging + its mask
+            "tmp/rbc2membrane.nii",
+            "tmp/mask_rbc2membrane.nii",
+            # RH: RBC and membrane signal images (shown in the grayscale report), for figures
+            "tmp/rbc.nii",
+            "tmp/membrane.nii",
         )
 
         # move files

@@ -485,9 +485,80 @@ def get_TR_dissolved(header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader) ->
 	Returns:
 		TR in seconds (float)
 	"""
-	tr_gas_to_dissolved = header.sequenceParameters.TR[0]
-	tr_dissolved_to_gas = header.sequenceParameters.TR[1]
+	tr = list(header.sequenceParameters.TR)
+	# RH: philips-to-mrd converter writes [TR * n_contrasts, ..., TR], i.e. TR[0] is
+	# already the dissolved-to-dissolved time (e.g. Duke [8.48, 16.96, 4.24] = 2 x 4.24 ms,
+	# CPIR [15, 15, 5] = 3 x 5 ms; checked against .sin/.list). Summing TR[0] + TR[1]
+	# made the k0 time base 2-3x too slow, so the bandpass missed the cardiac peak.
+	if len(tr) >= 3 and tr[-1] > 0:
+		n_contrasts = tr[0] / tr[-1]
+		if n_contrasts >= 2 and abs(n_contrasts - round(n_contrasts)) < 1e-3:
+			return tr[0] * 1e-3
+	tr_gas_to_dissolved = tr[0]
+	tr_dissolved_to_gas = tr[1]
 	return (tr_gas_to_dissolved + tr_dissolved_to_gas) * 1e-3
+
+
+def get_duke_protocol_traj(
+	header: ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader,
+	traj: list,
+	traj_filepath: str,
+) -> list:
+	"""Replace the gas and dissolved trajectories with the corrected Duke-protocol one.
+
+	RH: Duke-protocol (DukeIPF) Philips MRD trajectories were built with the converter's
+	1.25-sample gradient delay; traj_filepath holds the corrected trajectory
+	(n_projections, n_points, 3), one file per readout length (constants.
+	DUKE_PROTOCOL_TRAJ_FILES: 128 points only; 64 points keeps the MRD trajectory).
+	It is used only if all of: vendor is Philips, protocol name contains "DukeIPF",
+	trajectory shape matches the file exactly, and the spoke directions match (same
+	Halton spiral ordering). Otherwise the MRD trajectory is kept.
+
+	Args:
+		header (ismrmrd.xsd.ismrmrdschema.ismrmrd.ismrmrdHeader): MRD header
+		traj (list): [gas trajectory, dissolved trajectory] from the MRD file
+		traj_filepath (str): path to the corrected trajectory .npy file
+	Returns:
+		[gas trajectory, dissolved trajectory]
+	"""
+	if get_system_vendor(header) != constants.SystemVendor.PHILIPS.value:
+		return traj
+	if "dukeipf" not in get_protocol_name(header).lower():
+		return traj
+	# RH: no file for this readout length (64 points): keep the MRD trajectory
+	if not traj_filepath:
+		return traj
+	try:
+		traj_fixed = np.load(traj_filepath)
+	except (OSError, ValueError):
+		logging.warning(
+			"Duke-protocol trajectory file not found: {}. Keeping MRD trajectory.".format(
+				traj_filepath
+			)
+		)
+		return traj
+	traj_gas, traj_dis = (np.asarray(t) for t in traj)
+	if traj_gas.shape != traj_fixed.shape or traj_dis.shape != traj_fixed.shape:
+		logging.info(
+			"MRD trajectory shape {} != {} in {}. Keeping MRD trajectory.".format(
+				traj_dis.shape, traj_fixed.shape, traj_filepath
+			)
+		)
+		return traj
+
+	def spoke_dirs(t):
+		return t[:, -1] / np.linalg.norm(t[:, -1], axis=-1, keepdims=True)
+
+	match = np.mean(np.sum(spoke_dirs(traj_dis) * spoke_dirs(traj_fixed), axis=-1))
+	if match < 0.999:
+		logging.warning(
+			"Spoke directions do not match {} (mean dot {:.4f}). Keeping MRD trajectory.".format(
+				traj_filepath, match
+			)
+		)
+		return traj
+	logging.info("Using corrected Duke-protocol trajectory: {}".format(traj_filepath))
+	return [traj_fixed.copy(), traj_fixed.copy()]
 
 
 def get_gx_data(dataset: ismrmrd.hdf5.Dataset, multi_echo: bool) -> Dict[str, Any]:
