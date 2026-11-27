@@ -10,7 +10,9 @@ FOVINFLATIONSCALE3D = 1000.0
 # (940 +/- 20 mL) reads 947 mL with it and 911 mL with the 2.2-sample file of 13 Nov 2026.
 # 64 pts (10 us dwell): no entry, so the MRD trajectory (converter gr_delay 1.25 samples) is kept.
 # The bag delay carried over in time gives 1.21-1.24; the 0.98 file of 13 Nov 2026 was anchored on
-# CCHMC 0.36, which the bag put in doubt. Both 13 Nov files stay in bin/trajs for reference.
+# CCHMC 0.36, which the bag put in doubt. Both 13 Nov files were removed from bin/trajs on
+# 27 Nov 2026 (misc_py_scripts/duke_vs_cpir_xenon/build_delay_trajs.py rebuilds them).
+# The cchmc_ILD configs also name the 128-point file in recon.traj_filepath.
 DUKE_PROTOCOL_TRAJ_FILES = {
     128: "bin/trajs/traj_before_rescaling.npy",
 }

@@ -1,47 +1,49 @@
-"""Run all cchmc_ILD subjects for both sites.
+"""Run all cchmc_ILD subjects for both protocols (folders CCHMC and Duke).
 
 RH: batch runner for the configs in config/cchmc_ILD/CCHMC and config/cchmc_ILD/Duke.
+Those configs hold every setting of a run (they are built by
+misc_py_scripts/cchmc_ild_configs/make_configs.py), so the normal use is to run them
+as they are, without --method or --overrides.
 
 Each config is run in its own python process (python main.py --config=...), so
 a crash in one run cannot stop the batch. Runs are sequential, since the
-pipeline writes to the shared tmp folder.
+pipeline writes to the shared tmp folder. A run takes about 70 s, the full 100
+runs about 2 h.
 
 By default each run uses the vent_normalization_method of its config file and
-writes directly into the output folder (e.g. gx_osc). --method overrides it on
+writes into the output_folder of its config. --method overrides the method on
 the command line, the config files are not modified. With --method=all every
-method is run into its own subfolder (e.g. gx_osc/glb_99); GLB_FV is then
+method is run into its own subfolder (e.g. <output>/glb_99); GLB_FV is then
 skipped by main.py for subjects without bag_volume.
 
 --overrides sets other config fields for every run in the same way, e.g. a
 different output folder, so a variant can be run next to the existing output.
---cchmc_key_radius sets osc_recon.key_radius (points) for the CCHMC site only
-(Duke keeps the value of its config).
 
 Runs that are already complete are skipped unless --rerun is set. Each batch
 writes into <batch_log_dir>/<timestamp>/:
 
-    batch_log.txt          one line per run (status, time, error) + summary
-    <site>_<subject>.log   full pipeline output of that run
-    <site>_<subject>_config.py   config used for that run (only with --overrides)
-    combined_stats.csv     stats csv rows of all selected subjects and sites
-                           that have output (also from earlier batches)
+    batch_log.txt                one line per run (status, time, error) + summary;
+                                 starts with the pipeline git commit and any
+                                 uncommitted changes
+    <site>_<subject>.log         full pipeline output of that run
+    <site>_<subject>_config.py   config file used for that run
+    combined_stats.csv           stats csv rows of all selected subjects and sites
+                                 that have output (also from earlier batches)
 
 A run that takes longer than --timeout_min is killed and noted as failed.
 
-Usage:
-    python cchmc_ILD_batch_runner.py
-    python cchmc_ILD_batch_runner.py --sites=Duke --subjects=HC002,HC051
-    python cchmc_ILD_batch_runner.py --method=all
+Usage (from the repo root, conda env xe_gx):
     python cchmc_ILD_batch_runner.py --dry_run
-    python cchmc_ILD_batch_runner.py --sites=Duke \
-        --overrides=recon.traj_scaling_factor=1,registration_key=mask2gas,output_folder=gx_osc_NoTarjScaling
-    python cchmc_ILD_batch_runner.py --cchmc_key_radius=5 \
-        --overrides=recon.traj_scaling_factor=0.903,output_folder=gx_osc_TrajScaling0p903_kr8
+    python cchmc_ILD_batch_runner.py --subjects=HC002,HC012
+    python cchmc_ILD_batch_runner.py
+    python cchmc_ILD_batch_runner.py --sites=Duke --subjects=HC002 --rerun
+    python cchmc_ILD_batch_runner.py --overrides=output_folder=gx_osc_test
 """
 
 import glob
 import importlib.util
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -55,7 +57,7 @@ from utils import constants, io_utils
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_list("sites", ["CCHMC", "Duke"], "site folders in config/cchmc_ILD")
+flags.DEFINE_list("sites", ["CCHMC", "Duke"], "protocol folders in config/cchmc_ILD")
 flags.DEFINE_list("subjects", [], "subject config names, e.g. HC002,HC051 (default: all)")
 flags.DEFINE_enum(
     "method",
@@ -67,14 +69,6 @@ flags.DEFINE_list(
     "overrides",
     [],
     "config overrides for every run, as key=value, e.g. recon.traj_scaling_factor=1",
-)
-# RH: CCHMC readouts (58 pts, 19 us dwell) reach ~2x the k-space radius per point of
-# Duke's. RH: upstream now sets key_radius in points (0 = auto, 6.8% k_max), so this
-# flag overrides osc_recon.key_radius (points), not the old key_radius_pct
-flags.DEFINE_integer(
-    "cchmc_key_radius",
-    None,
-    "osc_recon.key_radius (points per spoke) for CCHMC site runs only (default: from config)",
 )
 flags.DEFINE_boolean("rerun", False, "rerun subjects that are already complete")
 flags.DEFINE_boolean("dry_run", False, "only list what would run")
@@ -142,16 +136,12 @@ def get_override_list(path: str) -> list:
     """Get the overrides of a run as key=value strings.
 
     Args:
-        path (str): path to the config .py file of the run
+        path (str): path to the config .py file of the run (same overrides for all)
 
     Returns:
-        --overrides, plus the site-specific overrides for the site of the run.
+        --overrides, without empty entries.
     """
-    overrides = list(FLAGS.overrides)
-    site = os.path.basename(os.path.dirname(os.path.abspath(path)))
-    if site == "CCHMC" and FLAGS.cchmc_key_radius is not None:
-        overrides.append("osc_recon.key_radius={}".format(FLAGS.cchmc_key_radius))
-    return overrides
+    return [override for override in FLAGS.overrides if override.strip()]
 
 
 def get_overrides(config, path: str) -> dict:
@@ -166,14 +156,10 @@ def get_overrides(config, path: str) -> dict:
     """
     overrides = {}
     for override in get_override_list(path):
-        # skip empty entries, e.g. from a double comma
-        if not override.strip():
-            continue
         key, value = override.split("=", 1)
         old = config
         for name in key.split("."):
-            # RH: subject configs define their own Recon without newer base fields
-            # (e.g. traj_filepath); a missing last field is treated as unset
+            # a field the config does not define is treated as unset
             old = getattr(old, name, None)
         if old in (None, constants.NONE):
             # field is unset ("None") in the config: take a number if it is one
@@ -302,10 +288,13 @@ def run_config(path: str, run_log: str) -> tuple:
         return "failed", "cannot load config: {!r}".format(error)
     if not FLAGS.rerun and not get_missing_methods(config):
         return "skipped", "already complete"
+    used_config = run_log[:-4] + "_config.py"
     if get_override_list(path):
-        override_path = run_log[:-4] + "_config.py"
-        write_override_config(path, config, override_path)
-        path = override_path
+        write_override_config(path, config, used_config)
+        path = used_config
+    else:
+        # keep a copy of the config file the run used, next to its log
+        shutil.copyfile(path, used_config)
     command = [sys.executable, "main.py", "--config={}".format(path)]
     if FLAGS.method:
         command.append("--config.vent_normalization_method={}".format(FLAGS.method))
@@ -364,10 +353,40 @@ def combine_stats(runs: list, path: str) -> int:
     return sum(len(df) for df in rows)
 
 
+def get_git_state() -> list:
+    """Describe the pipeline code version, for the top of the batch log.
+
+    Returns:
+        lines: branch and commit, then one line per uncommitted change to tracked
+        files or untracked .py file (data/, logs/ and other ignored files, and
+        untracked non-code files such as .Rhistory, are not listed).
+    """
+
+    def git(*args):
+        result = subprocess.run(["git", *args], capture_output=True, text=True)
+        return result.stdout.rstrip("\n") if result.returncode == 0 else ""
+
+    commit = git("rev-parse", "--short", "HEAD") or "unknown (not a git repository?)"
+    branch = git("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
+    changes = [
+        line
+        for line in git("status", "--porcelain").splitlines()
+        if line.strip() and (not line.startswith("??") or line.endswith(".py"))
+    ]
+    lines = ["pipeline: branch {}, commit {}".format(branch, commit)]
+    if changes:
+        lines.append("WARNING: {} uncommitted change(s), output may not match the commit:".format(len(changes)))
+        lines.extend("    " + line for line in changes)
+    else:
+        lines.append("no uncommitted changes")
+    return lines
+
+
 def main(argv):
     """Run all configs and write the batch log."""
     runs = get_config_paths()
     if FLAGS.dry_run:
+        print("\n".join(get_git_state()))
         for site, subject, path in runs:
             config = load_config(path)
             done = not get_missing_methods(config)
@@ -390,15 +409,17 @@ def main(argv):
             log.flush()
 
         write("cchmc_ILD batch started {}".format(datetime.now().isoformat(" ", "seconds")))
+        for line in get_git_state():
+            write(line)
         write(
             "{} runs, sites: {}, method: {}, rerun: {}".format(
                 len(runs), ",".join(FLAGS.sites), FLAGS.method or "from config", FLAGS.rerun
             )
         )
-        if FLAGS.overrides:
-            write("overrides: {}".format(", ".join(FLAGS.overrides)))
-        if FLAGS.cchmc_key_radius is not None:
-            write("CCHMC key_radius: {}".format(FLAGS.cchmc_key_radius))
+        if get_override_list(""):
+            write("overrides: {}".format(", ".join(get_override_list(""))))
+        else:
+            write("overrides: none (configs run as they are)")
         write("")
         try:
             for i, (site, subject, path) in enumerate(runs, 1):
